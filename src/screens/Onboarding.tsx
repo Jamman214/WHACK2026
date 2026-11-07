@@ -168,7 +168,7 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
             {done ? (
               <>
                 <div className="cat">All {DECK.length} sorted</div>
-                <div className="hl">That's your feed, mapped. Next stop: the Topic Atlas.</div>
+                <div className="hl">That's your bubble, sorted. Next stop: the stories outside it.</div>
                 <div className="meta">Press Reset to run it again</div>
               </>
             ) : (
@@ -182,7 +182,7 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
           <div className="choices">
             {done ? (
               <button className="btn primary big" ref={mapBtnRef} onClick={() => onDone(bubbleFrom(seenTopics.current))}>
-                See your map →
+                Open your feed →
               </button>
             ) : (
               <>

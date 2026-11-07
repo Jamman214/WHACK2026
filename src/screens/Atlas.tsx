@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CATEGORIES, CATEGORY_BY_ID, LINKS, TOPIC_BY_ID, TOPICS, categoryColor } from "../data/taxonomy";
-import { CX, CY, MAP_H, MAP_W, OUTER, buildModel, layout, pathTo, type Layout } from "../lib/layout";
+import { DEFAULT_STRENGTH, MODEL } from "../data/model";
+import { CX, CY, MAP_H, MAP_W, OUTER, layout, pathTo, type Layout } from "../lib/layout";
 
-const MODEL = buildModel(CATEGORIES, LINKS);
 const STRENGTHS: [string, number][] = [["Strong", 0.75], ["Related", 0.5], ["Loose", 0.3], ["All", 0]];
 const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const edgeKey = (a: string, b: string) => (a < b ? a + "|" + b : b + "|" + a);
@@ -37,11 +37,19 @@ function useTweenedPositions(targets: Layout["nodes"]): Pos {
   return pos;
 }
 
-interface Props { initialBubble: string[]; onRedo: () => void }
+interface Props {
+  /** The bubble. Owned by the parent so the feed and the map stay in sync. */
+  bubble: string[];
+  onBubbleChange: (bubble: string[]) => void;
+  /** What "Reset to starting bubble" returns to (the onboarding result). */
+  initialBubble: string[];
+  onRedo: () => void;
+}
 
-export default function Atlas({ initialBubble, onRedo }: Props) {
-  const [known, setKnown] = useState(() => new Set(initialBubble));
-  const [thr, setThr] = useState(0.3);
+export default function Atlas({ bubble, onBubbleChange, initialBubble, onRedo }: Props) {
+  const known = useMemo(() => new Set(bubble), [bubble]);
+  const setKnown = (k: Set<string>) => onBubbleChange([...k]);
+  const [thr, setThr] = useState(DEFAULT_STRENGTH);
   const [sel, setSel] = useState<string | null>(null);
   const [names, setNames] = useState<"near" | "all">("near");
 

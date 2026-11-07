@@ -185,3 +185,17 @@ export function pathTo(lay: Layout, id: string): string[] {
   }
   return p;
 }
+
+/** Bubble topics first, then everything within `maxRing` bridges, nearest ring first. */
+export function nearbyTopics(lay: Layout, maxRing: number): string[] {
+  return Object.values(lay.nodes)
+    .filter((n) => n.ring <= maxRing)
+    .sort((a, b) => a.ring - b.ring)
+    .map((n) => n.id);
+}
+
+/** Like pathTo, but null when the topic is out of reach at this strength. */
+export function reachablePath(lay: Layout, id: string): string[] | null {
+  const n = lay.nodes[id];
+  return n && n.ring < Infinity ? pathTo(lay, id) : null;
+}

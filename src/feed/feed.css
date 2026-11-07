@@ -1,11 +1,11 @@
-/* Uses the app's tokens when present, with standalone fallbacks. */
+/* Uses the app's tokens when present (styles.css: .theme-board, light + dark), with standalone fallbacks. */
 .feed, .feed *, .feed *::before, .feed *::after { box-sizing: border-box; }
 .feed {
   --f-bg: var(--bg, #f6f5f1);
-  --f-card: var(--card, #fff);
-  --f-ink: var(--text-h, #14120f);
-  --f-mute: var(--text, #6b665c);
-  --f-line: var(--border, #e4e1d8);
+  --f-card: var(--surface, #fff);
+  --f-ink: var(--ink, #14120f);
+  --f-mute: var(--muted, #6b665c);
+  --f-line: var(--line, #e4e1d8);
   --f-out: var(--accent, #d4572a);
   --f-in: var(--f-mute);
   position: relative;
@@ -14,8 +14,8 @@
   color: var(--f-ink);
 }
 @media (prefers-color-scheme: dark) {
-  .feed { --f-bg: var(--bg, #121110); --f-card: var(--card, #1c1b19); --f-ink: var(--text-h, #f1eee8);
-          --f-mute: var(--text, #a39e94); --f-line: var(--border, #2e2c29); --f-out: var(--accent, #f07a4a); }
+  .feed { --f-bg: var(--bg, #121110); --f-card: var(--surface, #1c1b19); --f-ink: var(--ink, #f1eee8);
+          --f-mute: var(--muted, #a39e94); --f-line: var(--line, #2e2c29); --f-out: var(--accent, #f07a4a); }
 }
 
 .feed__scroller {
@@ -83,7 +83,7 @@
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 18px;
   border-radius: 999px; border: 0; cursor: pointer;
   background: var(--f-ink); color: var(--f-card);
-  font: 600 15px/1 inherit; text-decoration: none;
+  font-weight: 600; font-size: 15px; line-height: 1; font-family: inherit; text-decoration: none;
 }
 .nc__cta:hover { opacity: .88; }
 .nc__cta:focus-visible, .feed__mapbtn:focus-visible { outline: 3px solid var(--f-out); outline-offset: 2px; }
@@ -97,7 +97,7 @@
   position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom));
   min-height: 44px; padding: 0 16px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--f-line); background: var(--f-card); color: var(--f-ink);
-  font: 600 14px/1 inherit; box-shadow: 0 6px 20px rgb(0 0 0 / .12);
+  font-weight: 600; font-size: 14px; line-height: 1; font-family: inherit; box-shadow: 0 6px 20px rgb(0 0 0 / .12);
 }
 .feed__sheet {
   position: fixed; inset: 0; z-index: 10; background: var(--f-bg);

@@ -1,12 +1,12 @@
 import { useState } from "react";
-import Atlas from "./screens/Atlas";
+import Home from "./screens/Home";
 import Intro from "./screens/Intro";
 import Onboarding from "./screens/Onboarding";
 
 type Screen =
   | { name: "intro" }
   | { name: "onboarding"; autoDemo: boolean; run: number }
-  | { name: "atlas"; bubble: string[] };
+  | { name: "home"; bubble: string[] };
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "intro" });
@@ -17,8 +17,8 @@ export default function App() {
     case "intro":
       return <Intro onStart={() => toOnboarding(false)} onDemo={() => toOnboarding(true)} />;
     case "onboarding":
-      return <Onboarding key={screen.run} autoDemo={screen.autoDemo} onDone={(bubble) => setScreen({ name: "atlas", bubble })} />;
-    case "atlas":
-      return <Atlas initialBubble={screen.bubble} onRedo={() => toOnboarding(false)} />;
+      return <Onboarding key={screen.run} autoDemo={screen.autoDemo} onDone={(bubble) => setScreen({ name: "home", bubble })} />;
+    case "home":
+      return <Home initialBubble={screen.bubble} onRedo={() => toOnboarding(false)} />;
   }
 }
