@@ -132,14 +132,14 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-atlas .map { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
 .theme-atlas svg { display: block; width: 100%; height: auto; max-height: calc(100vh - 150px); }
 .theme-atlas .ring { fill: none; stroke: var(--line); stroke-dasharray: 4 5; }
-.theme-atlas .ringlbl { font: 500 11px var(--mono); fill: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.theme-atlas .ringlbl { font: 500 12.5px var(--mono); fill: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
 .theme-atlas .bubble { fill: var(--accent); fill-opacity: 0.09; stroke: var(--accent); stroke-width: 2; }
-.theme-atlas .bubblelbl { font: 700 15px var(--display); fill: var(--accent); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; }
-.theme-atlas .clabel { font: 600 13px var(--display); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.theme-atlas .bubblelbl { font: 700 18px var(--display); fill: var(--accent); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; }
+.theme-atlas .clabel { font: 600 16px var(--display); paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
 .theme-atlas .edge { stroke-linecap: round; }
 .theme-atlas .node { cursor: pointer; }
 .theme-atlas .node circle { stroke: var(--surface); stroke-width: 2; }
-.theme-atlas .node text { font: 500 11.5px var(--body); fill: var(--fg); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.theme-atlas .node text { font: 500 14px var(--body); fill: var(--fg); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
 .theme-atlas .node.known text { font-weight: 600; }
 .theme-atlas .node.sel circle { stroke: var(--fg); stroke-width: 2.5; }
 .theme-atlas .node.sel text { font-weight: 700; }
