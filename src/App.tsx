@@ -1,0 +1,24 @@
+import { useState } from "react";
+import Atlas from "./screens/Atlas";
+import Intro from "./screens/Intro";
+import Onboarding from "./screens/Onboarding";
+
+type Screen =
+  | { name: "intro" }
+  | { name: "onboarding"; autoDemo: boolean; run: number }
+  | { name: "atlas"; bubble: string[] };
+
+export default function App() {
+  const [screen, setScreen] = useState<Screen>({ name: "intro" });
+  const [run, setRun] = useState(0);
+  const toOnboarding = (autoDemo: boolean) => { setRun(run + 1); setScreen({ name: "onboarding", autoDemo, run: run + 1 }); };
+
+  switch (screen.name) {
+    case "intro":
+      return <Intro onStart={() => toOnboarding(false)} onDemo={() => toOnboarding(true)} />;
+    case "onboarding":
+      return <Onboarding key={screen.run} autoDemo={screen.autoDemo} onDone={(bubble) => setScreen({ name: "atlas", bubble })} />;
+    case "atlas":
+      return <Atlas initialBubble={screen.bubble} onRedo={() => toOnboarding(false)} />;
+  }
+}
