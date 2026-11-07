@@ -37,7 +37,23 @@ function useTweenedPositions(targets: Layout["nodes"]): Pos {
   return pos;
 }
 
+/** Open the map with `sel` selected (path highlighted) and the view framed on `center`. */
+export interface AtlasFocus { sel: string | null; center: string[] }
+
+/** viewBox fitting the given nodes (zoomed in at most 2x), kept inside the map bounds. */
+function frame(lay: Layout, ids: string[]) {
+  const pts = ids.map((id) => lay.nodes[id]).filter(Boolean);
+  if (!pts.length) return null;
+  const pad = 150, xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+  let w = Math.max(x1 - x0, MAP_W / 2), h = Math.max(y1 - y0, MAP_H / 2);
+  if (w / h > MAP_W / MAP_H) h = (w * MAP_H) / MAP_W; else w = (h * MAP_W) / MAP_H;
+  const clamp = (v: number, max: number) => Math.max(0, Math.min(max, v));
+  return { x: clamp((x0 + x1) / 2 - w / 2, MAP_W - w), y: clamp((y0 + y1) / 2 - h / 2, MAP_H - h), w, h };
+}
+
 interface Props {
+  focus?: AtlasFocus;
   /** The bubble. Owned by the parent so the feed and the map stay in sync. */
   bubble: string[];
   onBubbleChange: (bubble: string[]) => void;
@@ -46,15 +62,16 @@ interface Props {
   onRedo: () => void;
 }
 
-export default function Atlas({ bubble, onBubbleChange, initialBubble, onRedo }: Props) {
+export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, onRedo }: Props) {
   const known = useMemo(() => new Set(bubble), [bubble]);
   const setKnown = (k: Set<string>) => onBubbleChange([...k]);
   const [thr, setThr] = useState(DEFAULT_STRENGTH);
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(focus?.sel ?? null);
   const [names, setNames] = useState<"near" | "all">("near");
 
   const lay = useMemo(() => layout(MODEL, known, thr), [known, thr]);
   const pos = useTweenedPositions(lay.nodes);
+  const [view, setView] = useState(() => (focus?.center.length ? frame(lay, focus.center) : null));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSel(null); };
@@ -90,7 +107,8 @@ export default function Atlas({ bubble, onBubbleChange, initialBubble, onRedo }:
 
         <div className="main">
           <div className="map">
-            <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} role="img" aria-label="Radial map: your known topics in the centre, other topics placed by bridge distance">
+            {view && <button className="btn mapzoom" onClick={() => setView(null)}>Show whole map</button>}
+            <svg viewBox={view ? `${view.x} ${view.y} ${view.w} ${view.h}` : `0 0 ${MAP_W} ${MAP_H}`} role="img" aria-label="Radial map: your known topics in the centre, other topics placed by bridge distance">
               <g>
                 {lay.ringRadius.slice(1).map((r, i) => {
                   const k = i + 1, out = lay.hasOut && k === lay.rings;

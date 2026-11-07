@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import type { FeedCardModel } from './types';
 
 type Props = {
@@ -5,27 +6,61 @@ type Props = {
   topicName: (id: string) => string;
   index: number;
   total: number;
+  /** Why `b` matters to someone who follows `a` (one sentence), if known. */
+  reason?: (a: string, b: string) => string | undefined;
+  onChipHover?: (topicId: string | null) => void;
+  onChipClick?: (topicId: string, cardTopicId: string) => void;
 };
 
-export function NewsCard({ card, topicName, index, total }: Props) {
+export function NewsCard({ card, topicName, index, total, reason, onChipHover, onChipClick }: Props) {
   const p = card.placement;
   const outside = p.kind === 'bridge';
+  const ring = outside ? Math.min(p.hops, 3) : 0;
+  const steps = outside ? p.path.slice(1).map((to, i) => ({ from: p.path[i], to, why: reason?.(p.path[i], to) })) : [];
+  const last = steps[steps.length - 1];
+
+  const chip = (id: string) => (
+    <button type="button" className={`nc__chip${id === card.topicId ? ' nc__chip--here' : ''}`}
+      onMouseEnter={() => onChipHover?.(id)} onMouseLeave={() => onChipHover?.(null)}
+      onFocus={() => onChipHover?.(id)} onBlur={() => onChipHover?.(null)}
+      onClick={() => onChipClick?.(id, card.topicId)} title="Show on the map">
+      {topicName(id)}
+    </button>
+  );
+
   return (
-    <article className={`nc ${outside ? 'nc--out' : 'nc--in'}`} aria-roledescription="story"
+    <article className={`nc ${outside ? `nc--out nc--r${ring}` : 'nc--in'}`} aria-roledescription="story"
       aria-label={`${index + 1} of ${total}: ${card.headline}`}>
       {card.image && <img className="nc__img" src={card.image} alt="" loading="lazy" />}
 
       <header className="nc__meta">
         <span className="nc__topic">{topicName(card.topicId)}</span>
-        <span className="nc__where">
-          {outside ? `Outside your bubble · ${p.hops} step${p.hops > 1 ? 's' : ''} away` : 'In your bubble'}
+        <span className={`nc__badge nc__badge--r${ring}`}>
+          {outside ? `${p.hops} step${p.hops > 1 ? 's' : ''} outside your bubble` : 'In your bubble'}
         </span>
       </header>
 
       {outside && (
-        <p className="nc__bridge">
-          Because you follow <b>{topicName(p.from)}</b> → <b>{topicName(p.to)}</b>
-        </p>
+        <>
+          <p className="nc__bridge">
+            Because you follow{' '}
+            {p.path.map((id, i) => (
+              <Fragment key={id}>{i > 0 && <span className="nc__arrow" aria-hidden>→</span>}{chip(id)}</Fragment>
+            ))}
+          </p>
+          {last?.why && (steps.length === 1 ? (
+            <p className="nc__why">{last.why}</p>
+          ) : (
+            <details className="nc__why">
+              <summary>{last.why} <span className="nc__more">All {steps.length} steps</span></summary>
+              <ol className="nc__steps">
+                {steps.map((s) => (
+                  <li key={s.to}><b>{topicName(s.from)} → {topicName(s.to)}.</b> {s.why}</li>
+                ))}
+              </ol>
+            </details>
+          ))}
+        </>
       )}
 
       <h2 className="nc__headline">{card.headline}</h2>

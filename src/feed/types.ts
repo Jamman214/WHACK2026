@@ -12,7 +12,7 @@ export type FeedItem = {
 /** Where an item sits relative to the user's bubble. */
 export type Placement =
   | { kind: 'inside' }
-  | { kind: 'bridge'; from: string; to: string; hops: number }; // topic ids
+  | { kind: 'bridge'; from: string; to: string; hops: number; path: string[] }; // topic ids; path = from … to
 
 export type FeedCardModel = FeedItem & { placement: Placement };
 

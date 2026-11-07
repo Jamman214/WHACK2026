@@ -5,14 +5,58 @@ import { layout, nearbyTopics, reachablePath } from "../lib/layout";
 import { MOCK_ITEMS } from "./mock";
 import { mockProvider } from "./providers";
 import { QUERIES } from "./queries";
-import { rankFeed } from "./rank";
+import { DISTANCES, rankFeed, type Mix } from "./rank";
+import { edgeReason } from "../data/reasons";
+import { LINKS } from "../data/taxonomy";
 
 /** Same wiring as screens/Home.tsx. */
-async function feedFor(bubble: string[]) {
+async function feedFor(bubble: string[], mix?: Mix) {
   const lay = layout(MODEL, bubble, DEFAULT_STRENGTH);
-  const items = await mockProvider.fetch(nearbyTopics(lay, 2), 2);
-  return rankFeed(items, new Set(bubble), (id) => reachablePath(lay, id));
+  const items = await mockProvider.fetch(nearbyTopics(lay, lay.rings), 2);
+  return rankFeed(items, new Set(bubble), (id) => reachablePath(lay, id), mix);
 }
+const bridgeHops = (cards: Awaited<ReturnType<typeof feedFor>>) =>
+  cards.flatMap((c) => (c.placement.kind === "bridge" ? [c.placement.hops] : []));
+
+describe("distance mix", () => {
+  it("Nearby puts every 1-hop story before any further one", async () => {
+    const hops = bridgeHops(await feedFor(DEMO_BUBBLE, DISTANCES[0].mix));
+    expect(hops.slice(0, hops.filter((h) => h === 1).length).every((h) => h === 1)).toBe(true);
+  });
+
+  it("Wider is ~60/30/10 and Far ~30/40/30 over the first ten bridges", async () => {
+    const share = (hops: number[]) => [1, 2, 3].map((k) => hops.slice(0, 10).filter((h) => Math.min(h, 3) === k).length);
+    expect(share(bridgeHops(await feedFor(DEMO_BUBBLE, DISTANCES[1].mix)))).toEqual([6, 3, 1]);
+    expect(share(bridgeHops(await feedFor(DEMO_BUBBLE, DISTANCES[2].mix)))).toEqual([3, 4, 3]);
+  });
+
+  it("reorders but never filters", async () => {
+    const ids = async (m: Mix) => (await feedFor(DEMO_BUBBLE, m)).map((c) => c.id).sort();
+    const near = await ids(DISTANCES[0].mix);
+    expect(await ids(DISTANCES[1].mix)).toEqual(near);
+    expect(await ids(DISTANCES[2].mix)).toEqual(near);
+  });
+});
+
+describe("how you're linked", () => {
+  it("every graph edge has a one-sentence reason, readable in both directions", () => {
+    for (const l of LINKS) {
+      expect(edgeReason(l.a, l.b), `${l.a}|${l.b}`).toMatch(/^[A-Z].+\.$/);
+      expect(edgeReason(l.b, l.a)).toBe(edgeReason(l.a, l.b));
+    }
+  });
+
+  it("bridge cards carry the full path from the bubble, with a reason for each hop", async () => {
+    for (const c of await feedFor(DEMO_BUBBLE, DISTANCES[2].mix)) {
+      if (c.placement.kind !== "bridge") continue;
+      const { path, hops } = c.placement;
+      expect(DEMO_BUBBLE).toContain(path[0]);
+      expect(path.at(-1)).toBe(c.topicId);
+      expect(path).toHaveLength(hops + 1);
+      path.slice(1).forEach((id, i) => expect(edgeReason(path[i], id)).toBeDefined());
+    }
+  });
+});
 
 describe("feed data", () => {
   it("mock items use real taxonomy ids, demo labels and Guardian search links", () => {

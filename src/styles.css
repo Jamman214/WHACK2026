@@ -184,3 +184,66 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 /* The Atlas is taller than the viewport; let it scroll inside the feed's full-screen sheet. */
 .home__map { height: 100%; overflow-y: auto; }
 .home__map .screen { min-height: 100%; }
+
+/* Ring colours: how far outside the bubble (badges, mini-map path). */
+.theme-board { --ring-1: #0f766e; --ring-2: #b45309; --ring-3: #be185d; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-board { --ring-1: #2dd4bf; --ring-2: #fbbf24; --ring-3: #f472b6; }
+}
+:root[data-theme="dark"] .theme-board { --ring-1: #2dd4bf; --ring-2: #fbbf24; --ring-3: #f472b6; }
+
+/* Split view: feed ~60% / sticky mini-map ~40%; mini-map hidden on small screens. */
+.home { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); height: 100dvh; overflow: hidden; }
+.home__feed { position: relative; min-width: 0; }
+.home .feed__slide { padding-top: 88px; }
+.home__mini { border-left: 1px solid var(--line); background: var(--surface); padding: 24px; min-height: 0; }
+@media (max-width: 767px) {
+  .home { grid-template-columns: 1fr; }
+  .home__mini { display: none; }
+}
+
+/* Distance slider */
+.dist {
+  position: absolute; z-index: 2; top: 14px; left: 50%; transform: translateX(-50%); width: min(360px, calc(100% - 32px));
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 14px; padding: 8px 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 6px 20px -12px rgba(0, 0, 0, 0.35);
+}
+.dist__label { grid-row: span 2; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.dist input { width: 100%; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.dist input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.dist__stops { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.dist__stops span { cursor: pointer; }
+.dist__stops .on { color: var(--ink); font-weight: 600; }
+
+/* Mini-map */
+.mm { height: 100%; display: flex; flex-direction: column; gap: 14px; }
+.mm__head { display: grid; gap: 2px; }
+.mm__head strong { font-family: var(--display); font-size: 22px; line-height: 1.2; }
+.mm__sub { font-size: 13px; color: var(--muted); }
+.mm__btn {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; color: inherit; font: inherit;
+}
+.mm__btn:hover { border-color: var(--accent); }
+.mm__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mm__btn svg { flex: 1; min-height: 0; width: 100%; }
+.mm__hint { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.mm__region { fill: var(--accent); fill-opacity: 0.07; stroke: var(--accent); stroke-opacity: 0.3; stroke-width: 3; stroke-dasharray: 10 10; transition: r 0.4s ease; }
+.mm__ring { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 6 8; }
+.mm__bubble { fill: var(--accent); fill-opacity: 0.1; stroke: var(--accent); stroke-width: 3; }
+.mm__nedge { stroke: var(--muted); stroke-opacity: 0.45; stroke-width: 3; }
+.mm__pedge { stroke-width: 8; stroke-linecap: round; }
+.mm__pedge.mm--r1 { stroke: var(--ring-1); } .mm__pedge.mm--r2 { stroke: var(--ring-2); } .mm__pedge.mm--r3 { stroke: var(--ring-3); }
+.mm__node { stroke: var(--bg); stroke-width: 3; }
+.mm__node--fade { fill: var(--peg); opacity: 0.25; }
+.mm__node--near { fill: var(--muted); }
+.mm__node--bubble, .mm__node--path.mm--r0 { fill: var(--accent); }
+.mm__node--path.mm--r1 { fill: var(--ring-1); } .mm__node--path.mm--r2 { fill: var(--ring-2); } .mm__node--path.mm--r3 { fill: var(--ring-3); }
+.mm__lbl { font: 600 34px var(--body); fill: var(--ink); paint-order: stroke; stroke: var(--bg); stroke-width: 9px; stroke-linejoin: round; }
+.mm__pulse { fill: none; stroke: var(--accent); stroke-width: 5; transform-box: fill-box; transform-origin: center; animation: mm-pulse 1s ease-out infinite; }
+@keyframes mm-pulse { from { transform: scale(0.8); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mm__pulse { animation: none; } .mm__region { transition: none; } }
+
+/* Atlas opened at a story: framed view + way back out */
+.theme-atlas .map { position: relative; }
+.theme-atlas .mapzoom { position: absolute; top: 12px; left: 12px; z-index: 1; }
