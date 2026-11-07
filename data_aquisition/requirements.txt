@@ -1,0 +1,11 @@
+# torch: install the CPU build first to avoid a ~2GB CUDA download:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+feedparser==6.0.14
+numpy==2.5.4
+openai==3.46.0
+python-dateutil==4.0.0
+python-dotenv==1.2.4
+requests==2.34.2
+scikit-learn==1.9.1
+sentence-transformers==6.2.0
+umap-learn==0.5.12
