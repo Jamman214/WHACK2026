@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Article, ago } from './Article';
 import { DISTANCES, pickEdition, rankFeed, ringOf } from './rank';
+import { Reach } from './Reach';
 import { Thread } from './Thread';
 import type { FeedCardModel, NewsProvider } from './types';
 import './edition.css';
@@ -28,7 +29,6 @@ const TYPING = 'input,textarea,select,[contenteditable]:not([contenteditable="fa
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
 const LIMIT = 3;   // rows shown per group before "Show N more"
 const RING_LABEL = ['In your bubble', '1 step out', '2 steps out', '3+ steps out'] as const;
-const SHAPE_LABEL = ['Home', '1 step', '2 steps', '3+'] as const;
 
 /** Keep Tab / Shift+Tab inside the open sheet (the page behind it is inert as well). */
 function trapTab(e: KeyboardEvent, root: HTMLElement | null) {
@@ -151,9 +151,7 @@ export function Edition({
     return () => removeEventListener('keydown', onKey);
   });
 
-  const counts = groups.map((g) => g.cards.length);
   const n = edition.length;
-  const shape = counts.map((c, i) => `${SHAPE_LABEL[i]} ${c}`).join(', ');
 
   return (
     <div className="ed">
@@ -185,17 +183,7 @@ export function Edition({
               </div>
             </div>
             <hr />
-            <div className="ed__shapehead">
-              <span className="ed__eyebrow">Today’s shape{items ? ` · ${n} of ${ranked.length}` : ''}</span>
-              <span className="ed__bubblecount"><i aria-hidden /> {known.length} in your bubble</span>
-            </div>
-            <div className="ed__bar" role="img" aria-label={`Today’s mix: ${shape}`}>
-              {counts.map((c, i) => c > 0 && <span key={i} className={`ed__seg ed__seg--r${i}`} style={{ flexGrow: c }} />)}
-            </div>
-            <div className="ed__shapelabels" aria-hidden>
-              {counts.map((c, i) => <span key={i}>{SHAPE_LABEL[i]} {c}</span>)}
-            </div>
-            <p className="ed__fine">Newest first, one story per topic. Far moves the mix outward.</p>
+            <Reach groups={groups} selectedId={sel?.id} loading={!items} />
           </section>
 
           {!items && <div className="ed__skel" role="status" aria-label="Loading stories" aria-busy="true" />}
