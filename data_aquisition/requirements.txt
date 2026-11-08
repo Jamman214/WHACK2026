@@ -1,5 +1,5 @@
-# torch: install the CPU build first to avoid a ~2GB CUDA download:
-#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# torch + torchvision: install the CPU builds first to avoid a ~2GB CUDA download:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 feedparser==6.0.14
 numpy==2.5.4
 openai==3.46.0
@@ -9,3 +9,5 @@ requests==2.34.2
 scikit-learn==1.9.1
 sentence-transformers==6.2.0
 umap-learn==0.5.12
+pillow==13.0.0
+torchvision==0.29.2  # CPU build, same index as torch; needed by the EmbeddingGemma loader

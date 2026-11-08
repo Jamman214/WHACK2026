@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS articles (
     provider     TEXT,
     published_at TEXT NOT NULL,          -- ISO 8601 UTC
     fetched_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    embedding    BLOB,                   -- float32[384], L2-normalised; NULL until processed
-    topic_id     INTEGER REFERENCES topics(id),
-    subtopic_id  INTEGER REFERENCES topics(id)  -- NULL = "other" within its topic
+    embedding    BLOB,                   -- float32[768] (EmbeddingGemma 2), L2-normalised; NULL until processed
+    topic_id     INTEGER REFERENCES topics(id),     -- NULL = fits no topic (bridge candidate)
+    subtopic_id  INTEGER REFERENCES topics(id)  -- NULL exactly when topic_id is NULL
 );
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at);
 CREATE INDEX IF NOT EXISTS idx_articles_topic ON articles(topic_id, subtopic_id);

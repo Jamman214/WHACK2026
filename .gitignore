@@ -2,3 +2,4 @@
 .venv
 data/news.db*
 __pycache__/
+data/topics.html
