@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DECK, bubbleFrom, demoSeen } from "../data/headlines";
+import { nextOnboarding, type Swipe } from "../data/api";
+import { type Headline, bubbleFrom, demoSeen } from "../data/headlines";
 import { TOPIC_BY_ID } from "../data/taxonomy";
 import { BOARD_W, createSplitBoard } from "../lib/galton";
 import { type Ball, drawSplitBoard, readTokens, sizeCanvas } from "../render/splitBoardCanvas";
@@ -9,7 +10,7 @@ const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matche
 interface Props {
   /** start the deterministic demo feed as soon as the board is on screen */
   autoDemo?: boolean;
-  onDone: (bubble: string[]) => void;
+  onDone: (bubble: string[], history: Swipe[]) => void;
 }
 
 export default function Onboarding({ autoDemo = false, onDone }: Props) {
@@ -25,12 +26,20 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
   const timers = useRef<number[]>([]);
   const morphs = useRef(new Set<{ anim: Animation; el: HTMLElement }>());
   const idxRef = useRef(0);
-  const seenTopics = useRef<string[]>([]);
+  // Onboarding is two-way: every swipe goes to the backend, which picks the next card and rebuilds the bubble.
+  const deck = useRef<Headline[]>([]); // cards served so far
+  const history = useRef<Swipe[]>([]);
+  const known = useRef<string[]>([]);
+  const run = useRef(0); // bumped on reset/unmount so stale replies are dropped
+  const demo = useRef(false);
 
   const [idx, setIdx] = useState(0);
   const [counts, setCounts] = useState({ seen: 0, unseen: 0 });
+  const [served, setServed] = useState(0);
+  const [max, setMax] = useState(0);
+  const [finished, setFinished] = useState(false);
 
-  const done = idx >= DECK.length;
+  const done = finished && idx >= served;
 
   const advance = (to: number) => { idxRef.current = to; setIdx(to); };
 
@@ -40,12 +49,38 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
     setCounts({ ...board.current.counts });
   }, []);
 
-  const choose = useCallback((isSeen: boolean) => {
-    const i = idxRef.current;
-    if (i >= DECK.length) return;
-    const h = DECK[i];
-    if (isSeen) seenTopics.current.push(h.topicId);
+  // These only touch refs and stable setters, so any render's copy is safe to call.
+  function fetchNext() {
+    const r = run.current;
+    nextOnboarding(history.current).then((step) => {
+      if (r !== run.current) return;
+      known.current = step.bubble.knownTopics;
+      setMax(step.progress.max);
+      if (!step.card) { setFinished(true); return; }
+      deck.current.push({ id: step.card.id, topicId: step.card.topicId, headline: step.card.title });
+      setServed(deck.current.length);
+      if (demo.current) timers.current.push(window.setTimeout(demoStep, 140));
+    }, (e) => console.error("onboarding", e));
+  }
+
+  /** Record a swipe on the card in view; null while the next card is still loading. */
+  function record(isSeen: boolean): Headline | null {
+    const i = idxRef.current, h = deck.current[i];
+    if (!h) return null;
+    history.current.push({ articleId: h.id, swipe: isSeen ? "right" : "left" }); // "In my feed" = backend "right" (I know this)
     advance(i + 1);
+    fetchNext();
+    return h;
+  }
+
+  function demoStep() {
+    const isSeen = demoSeen(idxRef.current);
+    if (record(isSeen)) spawn(isSeen);
+  }
+
+  const choose = useCallback((isSeen: boolean) => {
+    const h = record(isSeen);
+    if (!h) return;
 
     const card = cardRef.current, cv = canvasRef.current, root = rootRef.current;
     if (reduceMotion() || !card || !cv || !root) { spawn(isSeen); return; }
@@ -81,13 +116,8 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
   };
 
   const playDemo = useCallback(() => {
-    const start = idxRef.current;
-    for (let i = start; i < DECK.length; i++) {
-      const h = DECK[i], isSeen = demoSeen(h);
-      if (isSeen) seenTopics.current.push(h.topicId);
-      timers.current.push(window.setTimeout(() => spawn(isSeen), (i - start) * 140));
-    }
-    advance(DECK.length);
+    demo.current = true;
+    demoStep(); // no-op if the card is still loading: fetchNext carries on when it lands
   }, [spawn]);
 
   const reset = () => {
@@ -95,10 +125,20 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
     balls.current = [];
     board.current.reset();
     gate.current.target = 0;
-    seenTopics.current = [];
+    run.current++;
+    demo.current = false;
+    deck.current = [];
+    history.current = [];
+    known.current = [];
     setCounts({ seen: 0, unseen: 0 });
+    setServed(0);
+    setFinished(false);
     advance(0);
+    fetchNext();
   };
+
+  // first card; the cleanup drops the reply if StrictMode remounts or the screen closes
+  useEffect(() => { reset(); return () => { run.current++; }; }, []);
 
   // render loop + canvas sizing
   useEffect(() => {
@@ -147,7 +187,7 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
     return <><b>{s}</b> in your feed · <b>{u}</b> outside it · {Math.round((100 * u) / (s + u))}% of the sample is a blind spot</>;
   })();
 
-  const h = DECK[idx];
+  const h = deck.current[idx];
   return (
     <div className="screen theme-board fade" ref={rootRef}>
       <div className="wrap">
@@ -167,21 +207,21 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
           <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "")} ref={cardRef} key={idx}>
             {done ? (
               <>
-                <div className="cat">All {DECK.length} sorted</div>
+                <div className="cat">All {served} sorted</div>
                 <div className="hl">That's your bubble, sorted. Next stop: the stories outside it.</div>
                 <div className="meta">Press Reset to run it again</div>
               </>
-            ) : (
+            ) : h && (
               <>
                 <div className="cat">{TOPIC_BY_ID[h.topicId].name}</div>
                 <div className="hl">{h.headline}</div>
-                <div className="meta">Sample headline · {idx + 1} of {DECK.length}</div>
+                <div className="meta">Sample headline · {idx + 1} of {max}</div>
               </>
             )}
           </div>
           <div className="choices">
             {done ? (
-              <button className="btn primary big" ref={mapBtnRef} onClick={() => onDone(bubbleFrom(seenTopics.current))}>
+              <button className="btn primary big" ref={mapBtnRef} onClick={() => onDone(bubbleFrom(known.current, deck.current.map((c) => c.topicId)), history.current)}>
                 Open your feed →
               </button>
             ) : (

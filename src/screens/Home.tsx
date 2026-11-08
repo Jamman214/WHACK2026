@@ -1,23 +1,36 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { fetchBubble, type Swipe } from "../data/api";
 import { DEFAULT_STRENGTH, MODEL } from "../data/model";
 import { edgeReason } from "../data/reasons";
 import { TOPIC_BY_ID } from "../data/taxonomy";
-import { DISTANCES, Feed, defaultProvider, type FeedCardModel } from "../feed";
-import { QUERIES } from "../feed/queries";
+import { DISTANCES, Feed, backendProvider as provider, type FeedCardModel } from "../feed";
 import { layout, nearbyTopics, reachablePath } from "../lib/layout";
 import Atlas, { type AtlasFocus } from "./Atlas";
 import MiniMap from "./MiniMap";
 
-// Module-level so their identity is stable: Feed refetches when `provider` changes.
-const provider = defaultProvider(QUERIES);
 const topicName = (id: string) => TOPIC_BY_ID[id]?.name ?? id;
 
-interface Props { initialBubble: string[]; onRedo: () => void }
+interface Props { initialBubble: string[]; history: Swipe[]; onRedo: () => void }
 
 /** Primary screen: the news feed, with a mini-map beside it (desktop) and the full Atlas as a sheet. */
-export default function Home({ initialBubble, onRedo }: Props) {
+export default function Home({ initialBubble, history, onRedo }: Props) {
   // Lifted here (not in Atlas) so "Add to my bubble" on the map reshapes the feed.
   const [bubble, setBubble] = useState(initialBubble);
+  // The backend owns the bubble: map adds/removes are sent with the onboarding swipes and its answer wins.
+  // The starting bubble is pinned too, so an onboarding fallback bubble survives the round trip.
+  const pinned = useRef<Record<string, boolean>>(Object.fromEntries(initialBubble.map((t) => [t, true])));
+  const latest = useRef(0);
+  const changeBubble = (next: string[]) => {
+    const keep = new Set(next);
+    bubble.forEach((t) => { if (!keep.has(t)) pinned.current[t] = false; });
+    next.forEach((t) => { pinned.current[t] = true; });
+    setBubble(next); // optimistic, so the map redraws straight away
+    const call = ++latest.current;
+    fetchBubble(history, pinned.current).then(
+      (b) => { if (call === latest.current) setBubble(b.knownTopics); },
+      (e) => console.error("bubble", e),
+    );
+  };
   const [dist, setDist] = useState(0);
   const [active, setActive] = useState<FeedCardModel | null>(null);
   const [pulse, setPulse] = useState<string | null>(null);
@@ -64,7 +77,7 @@ export default function Home({ initialBubble, onRedo }: Props) {
           onMapOpenChange={onMapOpenChange}
           map={
             <div className="home__map">
-              <Atlas bubble={bubble} onBubbleChange={setBubble} initialBubble={initialBubble} onRedo={onRedo} focus={map.focus} />
+              <Atlas bubble={bubble} onBubbleChange={changeBubble} initialBubble={initialBubble} onRedo={onRedo} focus={map.focus} />
             </div>
           }
         />

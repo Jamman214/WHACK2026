@@ -1,9 +1,9 @@
-// Ported verbatim from whack-demo/reference/topic-atlas.html (CL + L).
-// Ask before changing topics, categories or link weights.
+// Hand-built taxonomy ported from whack-demo/reference/topic-atlas.html (CL + L).
+// At runtime it is replaced by the backend's topic map (see setTaxonomy / data/api.ts loadMap);
+// it stays here as the offline fixture the unit tests run against.
 
-export type CategoryId =
-  | "techbubble" | "media" | "science" | "education" | "work" | "money" | "resources"
-  | "africa" | "food" | "society" | "mental" | "transport" | "politics" | "law";
+/** A backend group id (e.g. "g-659"); the fixture uses the hand-built ids below. */
+export type CategoryId = string;
 
 export interface Topic { id: string; name: string; category: CategoryId }
 export interface Category { id: CategoryId; name: string; topics: Topic[] }
@@ -49,22 +49,36 @@ scotus uspol .85|scotus immig .5|techreg bigtech .85|techreg ai .6|techreg cyber
 socmed bigtech .7|lonely culture .35|therapy health .7|therapy youth .6
 minerals chips .85|minerals china .8|minerals trade .7|minerals war .4|water climate .75|water war .35|mining energy .4|ocean climate .55`;
 
-export const CATEGORIES: Category[] = CL.map(([id, name, items]) => ({
+export let CATEGORIES: Category[] = CL.map(([id, name, items]) => ({
   id,
   name,
   topics: items.map(([tid, tname]) => ({ id: tid, name: tname, category: id })),
 }));
-export const CATEGORY_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c])) as Record<CategoryId, Category>;
-export const TOPICS: Topic[] = CATEGORIES.flatMap((c) => c.topics);
-export const TOPIC_BY_ID: Record<string, Topic> = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
+export let CATEGORY_BY_ID: Record<CategoryId, Category> = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+export let TOPICS: Topic[] = CATEGORIES.flatMap((c) => c.topics);
+export let TOPIC_BY_ID: Record<string, Topic> = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
 
-export const LINKS: Link[] = RAW_LINKS.split(/[|\n]/).map((s) => {
+export let LINKS: Link[] = RAW_LINKS.split(/[|\n]/).map((s) => {
   const [a, b, w] = s.trim().split(" ");
   return { a, b, w: +w };
 });
 
-/** The bubble the demo feed must land on. */
+/** A bubble of fixture topics, for the tests. */
 export const DEMO_BUBBLE = ["cyber", "sport", "misinfo", "minerals"];
 
-/** CSS custom property holding a category's colour (defined in styles.css). */
-export const categoryColor = (c: CategoryId) => `var(--c-${c})`;
+// Backend groups are dynamic, so their colours are generated: golden-angle hues stay distinct as groups grow.
+let hue: Record<CategoryId, number> = {};
+
+/** Swap in the backend's topic map (ES live bindings: every importer sees the new values). */
+export function setTaxonomy(groups: { id: string; label: string }[], topics: { id: string; groupId: string; label: string }[], links: Link[]) {
+  CATEGORIES = groups.map((g) => ({ id: g.id, name: g.label, topics: [] }));
+  CATEGORY_BY_ID = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+  for (const t of topics) CATEGORY_BY_ID[t.groupId].topics.push({ id: t.id, name: t.label, category: t.groupId });
+  TOPICS = CATEGORIES.flatMap((c) => c.topics);
+  TOPIC_BY_ID = Object.fromEntries(TOPICS.map((t) => [t.id, t]));
+  LINKS = links.filter((l) => TOPIC_BY_ID[l.a] && TOPIC_BY_ID[l.b]);
+  hue = Object.fromEntries(groups.map((g, i) => [g.id, Math.round((i * 137.508) % 360)]));
+}
+
+/** A category's colour: generated for backend groups, the styles.css custom property for the fixture. */
+export const categoryColor = (c: CategoryId) => (c in hue ? `hsl(${hue[c]} 62% 52%)` : `var(--c-${c})`);

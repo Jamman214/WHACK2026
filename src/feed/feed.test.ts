@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_STRENGTH, MODEL } from "../data/model";
-import { DEMO_BUBBLE, TOPIC_BY_ID, TOPICS } from "../data/taxonomy";
+import { DEMO_BUBBLE, TOPIC_BY_ID } from "../data/taxonomy";
 import { layout, nearbyTopics, reachablePath } from "../lib/layout";
 import { MOCK_ITEMS } from "./mock";
 import { mockProvider } from "./providers";
-import { QUERIES } from "./queries";
 import { DISTANCES, rankFeed, type Mix } from "./rank";
 import { edgeReason } from "../data/reasons";
 import { LINKS } from "../data/taxonomy";
@@ -66,11 +65,6 @@ describe("feed data", () => {
       expect(it.url.startsWith("https://www.theguardian.com/search?q=")).toBe(true);
     }
     expect(new Set(MOCK_ITEMS.map((i) => i.id)).size).toBe(MOCK_ITEMS.length);
-  });
-
-  it("has Guardian search terms for every taxonomy topic, and nothing else", () => {
-    expect(Object.keys(QUERIES).sort()).toEqual(TOPICS.map((t) => t.id).sort());
-    for (const q of Object.values(QUERIES)) expect(q.trim()).not.toBe("");
   });
 });
 

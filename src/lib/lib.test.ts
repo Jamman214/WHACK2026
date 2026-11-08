@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORIES, DEMO_BUBBLE, LINKS, TOPICS } from "../data/taxonomy";
-import { DECK, bubbleFrom, demoSeen } from "../data/headlines";
+import { bubbleFrom, demoSeen } from "../data/headlines";
 import { SPLIT, ballPosition, createSplitBoard, pathDuration, scriptedPath } from "./galton";
 import { CX, CY, buildModel, layout, pathTo } from "./layout";
 
@@ -76,18 +76,15 @@ describe("radial layout", () => {
   });
 });
 
-describe("headline deck", () => {
-  it("covers all 14 categories with valid topic ids", () => {
-    const cats = new Set(DECK.map((h) => TOPICS.find((t) => t.id === h.topicId)!.category));
-    expect(cats.size).toBe(14);
+describe("onboarding bubble", () => {
+  it("keeps the backend's known topics", () => {
+    expect(bubbleFrom(["ai", "chips"], ["ai", "rates", "water"])).toEqual(["ai", "chips"]);
   });
 
-  it("the demo feed produces exactly the demo bubble", () => {
-    const bubble = bubbleFrom(DECK.filter(demoSeen).map((h) => h.topicId));
-    expect([...bubble].sort()).toEqual([...DEMO_BUBBLE].sort());
-  });
-
-  it("falls back to the demo bubble with fewer than 2 in-feed topics", () => {
-    expect(bubbleFrom(["ai"])).toEqual(DEMO_BUBBLE);
+  it("falls back to the demo rule's picks with fewer than 2 known topics", () => {
+    const shown = ["ai", "rates", "water", "sport", "cyber"];
+    expect(shown.filter((_, i) => demoSeen(i))).toEqual(["ai", "sport"]);
+    expect(bubbleFrom(["ai"], shown)).toEqual(["ai", "sport"]);
+    expect(bubbleFrom([], [])).toEqual([]);
   });
 });

@@ -34,3 +34,15 @@ assert c.get("/topics/nope/articles").status_code == 404
 assert c.get("/articles/nope").status_code == 404
 assert c.get("/topics/t-1/articles?limit=0").status_code == 422
 print("ok: map + links, articles by group/topic/id, ordering, paging, 404s")
+
+f = c.post("/feed", json={"topics": ["t-2", "nope", "t-1", "t-2"], "perTopic": 1}).json()
+assert [a["id"] for a in f] == ["a3", "a2"] and "centrality" not in f[0], f  # request order, deduped, unknown skipped
+assert c.post("/feed", json={"topics": ["t-1"], "perTopic": 0}).status_code == 422
+
+b = c.post("/bubble", json={"history": [{"articleId": "a2", "swipe": "right"}]}).json()
+assert b["knownTopics"] == ["t-1", "t-2"], b  # untested t-2 inferred from the group
+b = c.post("/bubble", json={"history": [{"articleId": "a2", "swipe": "right"}],
+                            "topics": {"t-2": False, "nope": True}}).json()
+assert b["knownTopics"] == ["t-1"] and b["unknownTopics"] == ["t-2"] and b["groupScores"] == {"g-1": 0.5}, b
+assert c.post("/bubble", json={"topics": {"t-2": True}}).json()["knownTopics"] == ["t-2"]  # map add with no swipes
+print("ok: batch feed, bubble with map overrides")

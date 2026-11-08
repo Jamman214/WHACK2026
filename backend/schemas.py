@@ -77,6 +77,17 @@ class Bubble(BaseModel):
     unknownTopics: list[str]  # score < 0.5: outside the bubble, candidates to explore
 
 
+class BubbleRequest(BaseModel):
+    history: list[Swipe] = Field(default=[], max_length=200)  # onboarding swipes, oldest first
+    # explicit "Add to / Remove from my bubble" from the map: topicId -> in bubble; wins over swipes
+    topics: dict[str, bool] = Field(default={}, max_length=2000)
+
+
+class FeedRequest(BaseModel):
+    topics: list[str] = Field(max_length=2000)  # topic ids, in the order the frontend wants them
+    perTopic: int = Field(2, ge=1, le=20)
+
+
 class OnboardingRequest(BaseModel):
     history: list[Swipe] = Field(default=[], max_length=200)  # every swipe so far, oldest first
 

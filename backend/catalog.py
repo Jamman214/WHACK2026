@@ -4,10 +4,11 @@
     GET /groups/{groupId}/articles   a group's articles, most typical first
     GET /topics/{topicId}/articles   a topic's articles, most typical first
     GET /articles/{articleId}        one article
+    POST /feed                       the top articles of many topics in one call
 """
 from fastapi import APIRouter, HTTPException, Query
 
-from schemas import Card, TopicMap
+from schemas import Card, FeedRequest, TopicMap
 from store import get_store
 
 router = APIRouter(tags=["catalog"])
@@ -45,3 +46,10 @@ def article(article_id: str):
     if article_id not in store.articles:
         raise HTTPException(404, f"unknown article {article_id}")
     return store.articles[article_id]
+
+
+@router.post("/feed", response_model=list[Card])
+def feed(req: FeedRequest):
+    """The `perTopic` most typical articles of each requested topic, in request order (unknown ids skipped)."""
+    store = get_store()
+    return [a for t in dict.fromkeys(req.topics) for a in store.by_topic.get(t, [])[:req.perTopic]]
