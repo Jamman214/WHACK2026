@@ -269,7 +269,7 @@ export const MOON_R = 0.16;
 export const MOON_RING = 2.0;
 export const MOON_RING_IN = 1.85;
 export const MOON_RING_OUT = 2.45;
-const MOON_SPLIT = 10;
+export const MOON_SPLIT = 10;
 
 /**
  * Static moon offsets in units of the planet radius, in a frame where the ring plane is xy (normal +z).
