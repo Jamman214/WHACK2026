@@ -43,3 +43,17 @@ articles, used = main.fetch_newsapi(days=2, budget=100, only="uk")
 assert used == 2 and all(c[1] == ",".join(main.NEWSAPI_REGIONS["uk"]) for c in calls)
 
 print(f"ok: {n_regions} regions, 1 request each per day, newest first, budget cap, --only")
+
+
+# strip_html drops publisher "read more" trailers but keeps the real text
+for raw, want in [
+    ("<p>Body text here. Continue reading...</p>", "Body text here."),
+    ('Body ends with Continue reading "el-Sisi Fulfills Promise"', "Body ends with"),
+    ("Body. The post Some Title appeared first on Grist.", "Body."),
+    ('Body Continue reading "T" The post T first appeared on Egyptian Streets .', "Body"),
+    ("Body text [&#8230;] Read more", "Body text"),
+    ("Continue reading about the Kraków plan is fine in the middle. Done.",
+     "Continue reading about the Kraków plan is fine in the middle. Done."),
+]:
+    assert main.strip_html(raw) == want, (raw, main.strip_html(raw))
+print("strip_html trailer checks OK")

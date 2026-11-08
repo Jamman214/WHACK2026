@@ -87,7 +87,8 @@
   letter-spacing: -.01em;
   text-wrap: balance;
 }
-.nc__summary { margin: 0; font-size: 16px; line-height: 1.55; color: var(--f-mute); text-wrap: pretty; max-width: 68ch; }
+.nc__summary { margin: 0; font-size: 16px; line-height: 1.55; color: var(--f-mute); text-wrap: pretty; max-width: 68ch;
+  display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ---- how you're connected: the route rail ---- */
 .feed { --f-r1: var(--ring-1, #b8790f); --f-r2: var(--ring-2, #c2410c); --f-r3: var(--ring-3, #9a3412); }
