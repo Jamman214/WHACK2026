@@ -1,11 +1,11 @@
 import { CATEGORY_BY_ID, TOPIC_BY_ID, type CategoryId } from "../../data/taxonomy";
 
-/** What the scene calls an open planet: a category, or the "You" home planet at the centre. */
+/** What the scene calls an open planet: a category, or the home planet at the centre. */
 export type PlanetKey = CategoryId | "home";
 
 export interface Insets { top: number; right: number; bottom: number; left: number }
 
-export const HOME_NAME = "You";
+export const HOME_NAME = "Your knowledge";
 export const SOURCE_DEMO = "Demo summary";
 
 export const planetName = (p: PlanetKey) => (p === "home" ? HOME_NAME : CATEGORY_BY_ID[p].name);
@@ -14,12 +14,17 @@ export const topicName = (id: string) => TOPIC_BY_ID[id]?.name ?? id;
 export const catOf = (topicId: string): CategoryId => TOPIC_BY_ID[topicId].category;
 export const catName = (topicId: string) => CATEGORY_BY_ID[catOf(topicId)].name;
 
-/** "In your bubble" / "1 step" / "2 steps" / "Out of reach", from a topic's ring. */
+/** The one distance wording: "In your bubble" / "1 step out" / "3 steps out" / "Out of reach", from a ring. */
 export const stepsText = (ring: number) =>
-  ring === 0 ? "In your bubble" : !Number.isFinite(ring) ? "Out of reach" : ring === 1 ? "1 step" : ring + " steps";
+  ring === 0 ? "In your bubble" : !Number.isFinite(ring) ? "Out of reach" : ring === 1 ? "1 step out" : ring + " steps out";
+export const stepsOut = stepsText;
 
-/** "1 step out" / "3 steps out". */
-export const stepsOut = (n: number) => (n === 1 ? "1 step out" : n + " steps out");
+/** Which ramp stop a ring uses: in | 1 | 2 | 3 | 4 (four or more steps) | out. */
+export const ringKey = (ring: number) =>
+  ring === 0 ? "in" : !Number.isFinite(ring) ? "out" : ring >= 4 ? "4" : String(ring);
+
+/** A link weight in words (links below 0.5 are not drawn at all). */
+export const strengthWord = (w: number) => (w >= 0.8 ? "Strongly related" : w >= 0.6 ? "Related" : "Loosely related");
 
 export const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 

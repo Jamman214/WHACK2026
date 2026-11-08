@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { CATEGORIES, CATEGORY_BY_ID, type CategoryId } from "../../data/taxonomy";
 import { MODEL, DEFAULT_STRENGTH } from "../../data/model";
 import { PLANET_INFO } from "../../data/planets";
@@ -8,7 +8,8 @@ import { pathTo, type Layout } from "../../lib/layout";
 import { colOf } from "../../lib/atlasStyle";
 import { routeTo, whereNext, type SolarModel, type SolarPlanet } from "../../lib/solar";
 import News from "./News";
-import { catName, plural, planetColor, planetName, stepsOut, stepsText, topicName, type PlanetKey } from "./util";
+import Dist from "./Dist";
+import { catName, plural, planetColor, planetName, stepsOut, strengthWord, topicName, type PlanetKey } from "./util";
 
 /** Everything the panels need from Atlas: data in, intents out. */
 export interface PanelCtx {
@@ -26,9 +27,12 @@ export interface PanelCtx {
   remove: (id: string) => void;
   goMap: () => void;
   reset: () => void;
+  /** Topic just added (briefly highlighted), or null. */
+  fresh: string | null;
 }
 
 const canRemove = (c: PanelCtx) => c.known.size > 1;
+const LAST_NOTE = "Your bubble needs at least one topic.";
 const isOut = (p: SolarPlanet) => !Number.isFinite(p.orbit);
 
 /** Planets with nothing known on them that sit one step from the bubble. */
@@ -50,11 +54,10 @@ function Row({ id, sub, w, onClick }: { id: string; sub?: string; w?: number; on
     <li>
       <button type="button" className={"row" + (w ? "" : " row--plain")} onClick={onClick}>
         <span className="row__dot" style={{ background: colOf(id) }} aria-hidden="true" />
-        <span className="nm">{topicName(id)}{sub && <small>{sub}</small>}</span>
+        <span className="nm">{topicName(id)}{(sub || !!w) && <small>{sub}{sub && !!w && " · "}{!!w && strengthWord(w)}</small>}</span>
         {!!w && (
           <>
             <span className="bar" aria-hidden="true"><b style={{ width: w * 100 + "%", background: colOf(id) }} /></span>
-            <span className="val"><span className="sr-only">link strength </span>{w.toFixed(2)}</span>
           </>
         )}
       </button>
@@ -82,7 +85,7 @@ export function Overview(c: PanelCtx) {
                   <span className="wn__dot" style={{ background: planetColor(id) }} aria-hidden="true" />
                   <span className="wn__body">
                     <span className="wn__name">{planetName(id)}</span>
-                    <span className="wn__meta">{stepsOut(p.orbit)}{via && <> · via {topicName(via.from)}</>}</span>
+                    <span className="wn__meta"><Dist ring={p.orbit} />{via && <span className="wn__via">via {topicName(via.from)}</span>}</span>
                     {why && <span className="wn__why">{why}</span>}
                   </span>
                   <span className="wn__go" aria-hidden="true">→</span>
@@ -114,12 +117,13 @@ export function Overview(c: PanelCtx) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Level 2a: the "You" planet
+// Level 2a: the "Your knowledge" planet
 // ---------------------------------------------------------------------------------------------
 export function HomePanel(c: PanelCtx) {
   const { sm, known } = c;
   const groups = CATEGORIES.map((cat) => ({ cat, ids: cat.topics.filter((t) => known.has(t.id)).map((t) => t.id) })).filter((g) => g.ids.length);
   const n = frontierCount(sm);
+  const [editing, setEditing] = useState(false);
   return (
     <>
       <div className="phead">
@@ -130,6 +134,10 @@ export function HomePanel(c: PanelCtx) {
       <p className="frontier">
         <strong>{n}</strong> {plural(n, "planet is", "planets are")} one step out. Open one to see how it connects to what you know.
       </p>
+      <div className="btnrow btnrow--edit">
+        <button type="button" className="at-btn" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>Edit bubble</button>
+        {editing && !canRemove(c) && <p className="note">{LAST_NOTE}</p>}
+      </div>
       {groups.map(({ cat, ids }) => (
         <section className="sec" key={cat.id}>
           <h3>
@@ -140,12 +148,12 @@ export function HomePanel(c: PanelCtx) {
           </h3>
           <ul>
             {ids.map((id) => (
-              <li key={id} className="krow">
+              <li key={id} className="krow" data-fresh={c.fresh === id || undefined}>
                 <button type="button" className="row row--plain" onClick={() => c.openTopic(id)}>
                   <span className="row__dot" style={{ background: colOf(id) }} aria-hidden="true" />
                   <span className="nm">{topicName(id)}</span>
                 </button>
-                {canRemove(c) && (
+                {editing && canRemove(c) && (
                   <button type="button" className="at-mini" aria-label={`Remove ${topicName(id)} from my bubble`} onClick={() => c.remove(id)}>Remove</button>
                 )}
               </li>
@@ -153,7 +161,6 @@ export function HomePanel(c: PanelCtx) {
           </ul>
         </section>
       ))}
-      <div className="btnrow"><button type="button" className="at-btn" onClick={c.goMap}>← Back to map</button></div>
     </>
   );
 }
@@ -194,15 +201,17 @@ export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel:
           {topics.map((tid) => {
             const ring = lay.nodes[tid].ring, isSel = tid === sel, inB = c.known.has(tid);
             return (
-              <li key={tid} className="topic" data-sel={isSel || undefined}>
+              <li key={tid} className="topic" data-sel={isSel || undefined} data-fresh={c.fresh === tid || undefined}>
                 <div className="trow">
                   <button type="button" className="trow__main" aria-expanded={isSel} onClick={() => c.toggleTopic(tid)}>
                     <span className="row__dot" style={{ background: colOf(tid) }} aria-hidden="true" />
                     <span className="nm">{topicName(tid)}</span>
-                    <span className="badge" data-ring={ring === 0 ? "in" : ring === 1 ? "1" : !Number.isFinite(ring) ? "out" : "n"}>{stepsText(ring)}</span>
+                    {!isSel && <Dist ring={ring} />}
                   </button>
                   {!isSel && (inB
-                    ? canRemove(c) && <button type="button" className="at-mini" aria-label={`Remove ${topicName(tid)} from my bubble`} onClick={() => c.remove(tid)}>Remove</button>
+                    ? canRemove(c)
+                      ? <button type="button" className="at-mini" aria-label={`Remove ${topicName(tid)} from my bubble`} onClick={() => c.remove(tid)}>Remove</button>
+                      : <span className="at-mini at-mini--note" title={LAST_NOTE}>Last topic</span>
                     : <button type="button" className="at-mini at-mini--add" aria-label={`Add ${topicName(tid)} to my bubble`} onClick={() => c.add(tid)}>Add</button>)}
                 </div>
                 {isSel && <TopicDetail id={tid} {...c} />}
@@ -212,9 +221,8 @@ export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel:
         </ul>
       </Sec>
 
-      {!sel && <News key={id} provider={c.provider} ids={p.topics} heading={`News from ${cat.name}`} showTopic />}
+      {!sel && <News key={id} provider={c.provider} lay={lay} ids={p.topics} heading={`News from ${cat.name}`} showTopic />}
 
-      <div className="btnrow"><button type="button" className="at-btn" onClick={c.goMap}>← Back to map</button></div>
     </>
   );
 }
@@ -228,11 +236,11 @@ function Connect({ id, p, out, lay, ...c }: PanelCtx & { id: CategoryId; p: Sola
   if (p.complete) {
     body = <p className="empty">You know every topic here. This planet is fully part of your bubble.</p>;
   } else if (out) {
-    body = <p className="empty">No chain of related bridges reaches this planet from your bubble yet. Add a topic on a nearer planet to open a route.</p>;
+    body = <p className="empty">No chain of related links reaches this planet from your bubble yet. Add a topic on a nearer planet to open a route.</p>;
   } else if (!steps.length) {
     body = (
       <p className="empty">
-        You already know {knownHere.join(", ")} here, so this planet is part of your world. The topics below show how far each of the others is.
+        You already know {knownHere.join(", ")} here, so this planet is already part of your bubble. The topics below show how far each of the others is.
       </p>
     );
   } else {
@@ -268,14 +276,14 @@ function TopicDetail({ id, lay, known, ...c }: PanelCtx & { id: string }) {
   if (ring === 0) {
     const out = MODEL.adj[id].filter((e) => e.w >= DEFAULT_STRENGTH && lay.nodes[e.o].ring === 1).sort((a, b) => b.w - a.w);
     body = (
-      <Sec title="Bridges out from here">
+      <Sec title={`Topics that connect to ${topicName(id)}`}>
         {out.length ? (
           <ul>{out.map((e) => <Row key={e.o} id={e.o} sub={catName(e.o)} w={e.w} onClick={() => c.openTopic(e.o)} />)}</ul>
-        ) : <p className="empty">No bridges out from here.</p>}
+        ) : <p className="empty">No topics connect outward from here yet.</p>}
       </Sec>
     );
   } else if (!Number.isFinite(ring)) {
-    body = <p className="empty">No chain of related bridges reaches this topic from your bubble yet. Add a nearby topic to open up a route.</p>;
+    body = <p className="empty">No chain of related links reaches this topic from your bubble yet. Add a nearby topic to open up a route.</p>;
   } else {
     const path = pathTo(lay, id);
     body = (
@@ -287,8 +295,7 @@ function TopicDetail({ id, lay, known, ...c }: PanelCtx & { id: string }) {
               <li key={s}>
                 <button type="button" className="row" onClick={() => c.openTopic(s)}>
                   <span className="p-dot" style={{ background: colOf(s) }} aria-hidden="true" />
-                  <span className="nm">{topicName(s)}<small>{i === 0 ? "You know this" : catName(s)}</small>{why && <small className="why">{why}</small>}</span>
-                  <span className="val">{i ? <><span className="sr-only">link strength </span>{lay.nodes[s].pw.toFixed(2)}</> : ""}</span>
+                  <span className="nm">{topicName(s)}<small>{i === 0 ? "You know this" : <>{catName(s)} · {strengthWord(lay.nodes[s].pw)}</>}</small>{why && <small className="why">{why}</small>}</span>
                 </button>
               </li>
             );
@@ -299,16 +306,16 @@ function TopicDetail({ id, lay, known, ...c }: PanelCtx & { id: string }) {
   }
   return (
     <div className="tdetail" id={"topic-" + id}>
-      <span className="kicker">{ring === 0 ? "In your bubble" : ring === 1 ? "Frontier · 1 step away" : Number.isFinite(ring) ? ring + " steps away" : "Out of reach"}</span>
+      <span className="kicker"><Dist ring={ring} /></span>
       {body}
       <div className="btnrow">
         {ring !== 0 ? (
           <button type="button" className="at-btn primary" onClick={() => c.add(id)}>Add to my bubble</button>
         ) : known.size > 1 ? (
           <button type="button" className="at-btn" onClick={() => c.remove(id)}>Remove from bubble</button>
-        ) : null}
+        ) : <p className="note">{LAST_NOTE}</p>}
       </div>
-      <News key={id} provider={c.provider} ids={[id]} heading={`News on ${topicName(id)}`} showTopic={false} />
+      <News key={id} provider={c.provider} lay={lay} ids={[id]} heading={`News on ${topicName(id)}`} showTopic={false} />
     </div>
   );
 }

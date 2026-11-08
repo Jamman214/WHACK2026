@@ -11,9 +11,11 @@ import { solarModel } from "../lib/solar";
 import AtlasScene, { webglAvailable } from "./AtlasScene";
 import AtlasSvg from "./AtlasSvg";
 import Search from "./atlas/Search";
+import Toast from "./atlas/Toast";
+import { loadStart, saveBubble } from "../lib/bubbleStore";
 import { HomePanel, Overview, PlanetPanel, type PanelCtx } from "./atlas/Panels";
 import {
-  HOME_NAME, SAME_INSETS, catOf, planetName, stepsOut, topicName, type Insets, type PlanetKey,
+  HOME_NAME, SAME_INSETS, catOf, planetName, plural, stepsOut, topicName, type Insets, type PlanetKey,
 } from "./atlas/util";
 import "./atlas.css";
 
@@ -31,7 +33,8 @@ interface Props {
   onBubbleChange: (bubble: string[]) => void;
   /** What "Reset to starting bubble" returns to (the onboarding result). */
   initialBubble: string[];
-  onRedo: () => void;
+  /** Kept for the parent; "Redo onboarding" now lives on the feed. */
+  onRedo?: () => void;
   /** Same news source as the feed, so a planet's stories match what the feed would show. */
   provider: NewsProvider;
   /** Leave the map and go back to the feed. When given, the map shows its own "Back to feed" button. */
@@ -62,7 +65,7 @@ const svgInset = (i: Insets, mobile: boolean): CSSProperties => {
  *   planet = "home" | cat    Planet   (your knowledge, or one category)
  *   planet + sel             Topic    (one topic expanded inside its planet; `sel` always belongs to `planet`)
  */
-export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, onRedo, provider, onClose }: Props) {
+export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, provider, onClose }: Props) {
   const known = useMemo(() => new Set(bubble), [bubble]);
   const setKnown = (k: Set<string>) => onBubbleChange([...k]);
   const lay = useMemo(() => layout(MODEL, known, THR), [known]);
@@ -76,7 +79,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
     ids: focus?.center.length ? focus.center : focusSel ? [focusSel, ...pathTo(lay, focusSel)] : null,
   }));
   const [moved, setMoved] = useState(false);
-  // Bumped by Home / Map: the 3D scene flies back to its default overview framing.
+  // Bumped by Map: the 3D scene flies back to its default overview framing.
   const [recenter, setRecenter] = useState(0);
 
   // WebGL scene by default; the flat SVG when WebGL is missing or fails to start.
@@ -85,6 +88,10 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
   const [panelOpen, setPanelOpen] = useState(() => !matchMedia("(max-width: 767px)").matches || !!focusSel);
   const [searchOpen, setSearchOpen] = useState(false);
   const [announce, setAnnounce] = useState("");
+  const [toast, setToast] = useState<{ id: number; message: string; prev: string[] } | null>(null);
+  const toastId = useRef(0);
+  const dismissToast = useCallback(() => setToast(null), []);
+  const [fresh, setFresh] = useState<string | null>(null); // topic just added: briefly highlighted
 
   const rootRef = useRef<HTMLDivElement>(null);
   const tlRef = useRef<HTMLDivElement>(null);
@@ -92,11 +99,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
   const bodyRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // --- navigation ----------------------------------------------------------------------------
-  const exploredLine = (id: keyof typeof PLANET_INFO, k: Set<string> = known) => {
-    const c = CATEGORY_BY_ID[id];
-    return `${c.name}: ${c.topics.filter((t) => k.has(t.id)).length} of ${c.topics.length} explored.`;
-  };
+  // --- navigation ---
   const openPlanet = useCallback((id: PlanetKey) => {
     setPlanet(id); setSel(null); setMoved(false); setPanelOpen(true);
     setView({ ids: id === "home" ? [...known] : CATEGORY_BY_ID[id].topics.map((t) => t.id) });
@@ -131,27 +134,72 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
     if (!a || a === document.body || !a.isConnected) bodyRef.current?.querySelector<HTMLElement>("[data-focus]")?.focus({ preventScroll: true });
   }, [focusTick]);
 
-  // New level: start at the top. New topic: scroll it into view inside the panel.
-  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [planet]);
+  useEffect(() => { saveBubble(bubble); }, [bubble]);
+
+  // --- browser history: one entry per level (Map 1, Planet 2, Topic 3) so Back climbs the same ladder as Esc ---
+  const depth = sel ? 3 : planet ? 2 : 1;
+  const hd = useRef(0);   // how many history entries this map has pushed
+  const skip = useRef(0); // popstate events we caused ourselves
+  const hasClose = !!onClose;
   useEffect(() => {
-    if (!sel) return;
-    bodyRef.current?.querySelector<HTMLElement>(".topic[data-sel]")
-      ?.scrollIntoView({ block: "start", behavior: reduceMotion() ? "auto" : "smooth" });
+    if (!hasClose) return;
+    try {
+      if (depth > hd.current) {
+        for (let n = hd.current + 1; n <= depth; n++) history.pushState({ atlas: n }, "");
+        hd.current = depth;
+      } else if (depth < hd.current) {
+        skip.current++; const d = depth - hd.current; hd.current = depth; history.go(d);
+      }
+    } catch { /* history unavailable: Esc and the buttons still work */ }
+  }, [depth, hasClose]);
+
+  // New level: start at the top. New topic: scroll it into view inside the panel.
+  // Only the panel body scrolls: scrollIntoView would also scroll the clipped .ov-side and hide the meter.
+  const lastPlanet = useRef(planet);
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (body && (!sel || lastPlanet.current !== planet)) body.scrollTop = 0;
+    lastPlanet.current = planet;
+  }, [planet, sel]);
+  useEffect(() => {
+    const body = bodyRef.current, el = body?.querySelector<HTMLElement>(".topic[data-sel]");
+    if (!body || !el) return;
+    const top = body.scrollTop + el.getBoundingClientRect().top - body.getBoundingClientRect().top - 8;
+    body.scrollTo({ top: Math.max(0, top), behavior: reduceMotion() ? "auto" : "smooth" });
   }, [sel, planet]);
 
+  useEffect(() => {
+    if (!fresh) return;
+    const t = setTimeout(() => setFresh(null), 2600);
+    return () => clearTimeout(t);
+  }, [fresh]);
   const add = useCallback((id: string) => {
+    if (known.has(id)) return;
     const next = new Set([...known, id]);
-    setKnown(next);
-    setAnnounce(`${topicName(id)} added to your bubble. ${exploredLine(catOf(id), next)}`);
+    const after = layout(MODEL, next, THR);
+    const n = TOPICS.filter((t) => after.nodes[t.id].ring === 1 && lay.nodes[t.id].ring !== 1).length;
+    const tail = n === 0 ? "" : n === 1 ? " · 1 topic is now one step away" : ` · ${n} topics now one step away`;
+    setKnown(next); setFresh(id);
+    setToast({ id: ++toastId.current, message: `Added ${topicName(id)}${tail}`, prev: bubble });
     toPanel();
-  }, [known]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [known, bubble, lay]); // eslint-disable-line react-hooks/exhaustive-deps
   const remove = useCallback((id: string) => {
     const next = new Set(known); next.delete(id);
+    const after = layout(MODEL, next, THR);
+    const n = TOPICS.filter((t) => t.id !== id && after.nodes[t.id].ring > lay.nodes[t.id].ring).length;
+    const tail = n === 0 ? "" : ` · ${n} ${plural(n, "topic", "topics")} moved further away`;
     setKnown(next);
-    setAnnounce(`${topicName(id)} removed from your bubble. ${exploredLine(catOf(id), next)}`);
+    setToast({ id: ++toastId.current, message: `Removed ${topicName(id)}${tail}`, prev: bubble });
     toPanel();
-  }, [known]); // eslint-disable-line react-hooks/exhaustive-deps
-  const reset = () => { setKnown(new Set(initialBubble)); setSel(null); setAnnounce("Bubble reset to where you started."); toPanel(); };
+  }, [known, bubble, lay]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reset = () => {
+    setToast({ id: ++toastId.current, message: "Bubble reset to where you started.", prev: bubble });
+    onBubbleChange(loadStart() ?? initialBubble); setSel(null); setFresh(null); toPanel();
+  };
+  const undo = () => {
+    if (toast) { onBubbleChange(toast.prev); setFresh(null); setAnnounce("Undone. Your bubble is back as it was."); }
+    setToast(null); toPanel();
+  };
 
   // From the panels: navigate, then rescue focus if the clicked control went away.
   const ctx: PanelCtx = {
@@ -161,14 +209,20 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
     toggleTopic,
     add, remove,
     goMap: () => { goMap(); toPanel(); },
-    reset,
+    reset, fresh,
   };
+  const close = useCallback(() => {
+    try {
+      if (hd.current > 0) { const n = hd.current; hd.current = 0; skip.current++; history.go(-n); }
+    } catch { /* ignore */ }
+    onClose?.();
+  }, [onClose]);
   const leaveTopic = () => { setSel(null); setAnnounce("Topic closed."); toPanel(); };
 
   // --- Esc: close search, clear the topic, leave the planet, and only then leave the map ---------------
   // Capture phase + stopPropagation so Feed's own Esc handler doesn't also close the sheet.
-  const st = useRef({ sel, planet, searchOpen, onClose });
-  st.current = { sel, planet, searchOpen, onClose };
+  const st = useRef({ sel, planet, searchOpen, onClose: onClose ? close : undefined, depth });
+  st.current = { sel, planet, searchOpen, onClose: onClose ? close : undefined, depth };
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -189,6 +243,26 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
     };
     addEventListener("keydown", onKey, true);
     return () => removeEventListener("keydown", onKey, true);
+  }, [goMap, toPanel]);
+
+  // Browser Back / Forward: land on the level the entry stands for.
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      if (skip.current > 0) { skip.current--; return; }
+      const target: number = e.state?.atlas ?? 0;
+      const cur = st.current.depth;
+      hd.current = target;
+      if (target === 0) { st.current.onClose?.(); return; }
+      if (target < cur) {
+        if (target === 1) { goMap(); } else { setSel(null); setAnnounce("Topic closed."); }
+        toPanel();
+      } else if (target > cur) {
+        // Forward to a level we can't rebuild: stay put and drop the extra entry.
+        skip.current++; hd.current = cur; history.go(cur - target);
+      }
+    };
+    addEventListener("popstate", onPop);
+    return () => removeEventListener("popstate", onPop);
   }, [goMap, toPanel]);
 
   // --- tell the scene how much of the canvas the overlays cover -------------------------------------
@@ -220,11 +294,11 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
   return (
     <div ref={rootRef} className="screen theme-atlas atlas fade" style={vars}>
       <div className="atlas__ui">
-        {/* top-left: the way back, where you are in the map, and the keyboard-friendly topic finder */}
+        {/* top-left, in reading order: the way out (feed), the way up (crumbs), then the topic finder */}
         <div className="ov-tl" ref={tlRef}>
           <section className="ov ov-head" aria-labelledby="atlas-title">
             {onClose && (
-              <button type="button" className="at-back" data-autofocus onClick={onClose}>
+              <button type="button" className="at-back" data-autofocus onClick={close}>
                 <span aria-hidden="true" className="at-back__arrow">←</span>
                 <span>Back to your feed</span>
                 <kbd aria-hidden="true">Esc</kbd>
@@ -237,14 +311,14 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
           </section>
 
           <div className="ov ov-crumb">
-            <button type="button" className="at-home" data-moved={moved || undefined} onClick={() => { goMap(); toPanel(); }}
+            <button type="button" className="at-home" data-moved={moved || undefined} onClick={ctx.goMap}
               title="Show the whole map">
               <span aria-hidden="true">⌂</span> Home<span className="sr-only">: show the whole map</span>
             </button>
             <Crumbs planet={planet} sel={sel} mobile={mobile} goMap={ctx.goMap} leaveTopic={leaveTopic} />
           </div>
 
-          <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} />
+          <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} onAdd={add} />
         </div>
 
         {/* right (desktop) / bottom sheet (mobile): progress + the panel for the current level */}
@@ -268,10 +342,9 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
             <div className="side__foot">
               <Legend />
               <p className="note">
-                Distance is the fewest “Related” bridges from your bubble. Each planet shows only its strongest route back to you.
-                Weights are hand-estimated placeholders for embedding similarity.
+                Distance is the fewest “Related” links between a topic and your bubble. Each planet shows only its strongest route
+                back to you. Links are estimated by hand for now, so treat distances as a guide.
               </p>
-              <button type="button" className="at-link" onClick={onRedo}>Redo onboarding</button>
             </div>
           </div>
         </aside>
@@ -287,6 +360,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, on
           Escape closes the list, then the open topic, then the planet back to the map, and from the map it takes you back to your feed.
         </p>
         <div className="sr-only" role="status" aria-live="polite">{announce}</div>
+        {toast && <Toast key={toast.id} message={toast.message} onUndo={undo} onDismiss={dismissToast} />}
       </div>
 
       {/* the map fills the whole screen; everything above floats over it */}
@@ -346,9 +420,9 @@ function Crumbs({ planet, sel, mobile, goMap, leaveTopic }: {
 function Legend() {
   return (
     <ul className="at-legend" aria-label="Map key">
-      <li><i className="sw sw--sun" aria-hidden="true" />☀ You: your knowledge, at the centre</li>
-      <li><i className="sw sw--ring" aria-hidden="true" />Orbit ring: steps from you</li>
-      <li><i className="sw sw--link" aria-hidden="true" />Route: strongest connection toward you</li>
+      <li><i className="sw sw--sun" aria-hidden="true" />Your knowledge, at the centre</li>
+      <li><i className="sw sw--ring" aria-hidden="true" />Orbit ring: steps from your bubble</li>
+      <li><i className="sw sw--link" aria-hidden="true" />Route: strongest link back to your bubble</li>
       <li><i className="sw sw--lit" aria-hidden="true" />Lit dot: explored</li>
     </ul>
   );

@@ -137,7 +137,7 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 
 /* ============ Atlas tokens ============ */
 .theme-atlas {
-  --bg: #f3f5f8; --surface: #ffffff; --fg: #151b26; --muted: #5b6578; --line: #d9dee7; --edge: #33415c; --accent: #2563eb;
+  --bg: #f3f5f8; --surface: #ffffff; --fg: #151b26; --muted: #5b6578; --line: #d9dee7; --edge: #33415c; --accent: #2563eb; --ctl-line: #7a8498;
   --c-techbubble: #2563eb; --c-money: #0d9488; --c-politics: #ea580c; --c-society: #9333ea; --c-food: #65a30d;
   --c-education: #ca8a04; --c-work: #0891b2; --c-transport: #db2777; --c-science: #4f46e5; --c-africa: #dc2626;
   --c-media: #92400e; --c-law: #475569; --c-mental: #c026d3; --c-resources: #16a34a;
@@ -145,14 +145,14 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .theme-atlas {
-    --bg: #0e1219; --surface: #161c27; --fg: #e6eaf2; --muted: #9aa4b8; --line: #2a3242; --edge: #a9b6d3; --accent: #60a5fa;
+    --bg: #0e1219; --surface: #161c27; --fg: #e6eaf2; --muted: #9aa4b8; --line: #2a3242; --edge: #a9b6d3; --accent: #60a5fa; --ctl-line: #6f7b94;
     --c-techbubble: #60a5fa; --c-money: #2dd4bf; --c-politics: #fb923c; --c-society: #c084fc; --c-food: #a3e635;
     --c-education: #facc15; --c-work: #22d3ee; --c-transport: #f472b6; --c-science: #818cf8; --c-africa: #f87171;
     --c-media: #d4a373; --c-law: #94a3b8; --c-mental: #e879f9; --c-resources: #4ade80; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] .theme-atlas {
-  --bg: #0e1219; --surface: #161c27; --fg: #e6eaf2; --muted: #9aa4b8; --line: #2a3242; --edge: #a9b6d3; --accent: #60a5fa;
+  --bg: #0e1219; --surface: #161c27; --fg: #e6eaf2; --muted: #9aa4b8; --line: #2a3242; --edge: #a9b6d3; --accent: #60a5fa; --ctl-line: #6f7b94;
   --c-techbubble: #60a5fa; --c-money: #2dd4bf; --c-politics: #fb923c; --c-society: #c084fc; --c-food: #a3e635;
   --c-education: #facc15; --c-work: #22d3ee; --c-transport: #f472b6; --c-science: #818cf8; --c-africa: #f87171;
   --c-media: #d4a373; --c-law: #94a3b8; --c-mental: #e879f9; --c-resources: #4ade80; color-scheme: dark;
@@ -179,11 +179,11 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .home__map { height: 100%; overflow: hidden; }
 
 /* Ring colours: one ordered amber-to-rust ramp (no pure red, so it never reads as an error) for how far outside the bubble (card rail, mini-map path). Blue stays reserved for home. */
-.theme-board { --ring-1: #a8700a; --ring-2: #c2570c; --ring-3: #8f3f0c; }
+.theme-board, .theme-atlas { --ring-1: #a8700a; --ring-2: #c2570c; --ring-3: #8f3f0c; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .theme-board { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
+  :root:not([data-theme="light"]) .theme-board, :root:not([data-theme="light"]) .theme-atlas { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
 }
-:root[data-theme="dark"] .theme-board { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
+:root[data-theme="dark"] .theme-board, :root[data-theme="dark"] .theme-atlas { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
 
 /* Split view: feed ~60% / sticky mini-map ~40%; mini-map hidden on small screens. */
 .home { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); height: 100dvh; overflow: hidden; }
