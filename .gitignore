@@ -5,3 +5,5 @@ dist
 .vite
 .env.local
 .env*.local
+.claude
+skills-lock.json
