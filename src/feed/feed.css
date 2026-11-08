@@ -86,7 +86,7 @@
   font-weight: 600; font-size: 15px; line-height: 1; font-family: inherit; text-decoration: none;
 }
 .nc__cta:hover { opacity: .88; }
-.nc__cta:focus-visible, .feed__mapbtn:focus-visible { outline: 3px solid var(--f-out); outline-offset: 2px; }
+.nc__cta:focus-visible, .feed__mapbtn:focus-visible, .feed__close:focus-visible { outline: 3px solid var(--f-out); outline-offset: 2px; }
 
 .nc--end { align-items: flex-start; border-top-color: var(--f-line); }
 .nc--skeleton { height: 420px; animation: nc-pulse 1.2s ease-in-out infinite alternate; }
@@ -100,7 +100,7 @@
   font-weight: 600; font-size: 14px; line-height: 1; font-family: inherit; box-shadow: 0 6px 20px rgb(0 0 0 / .12);
 }
 .feed__sheet {
-  position: fixed; inset: 0; z-index: 10; background: var(--f-bg);
+  position: fixed; inset: 0; z-index: 10; background: var(--f-bg); outline: none;
   animation: feed-up .25s ease-out;
 }
 .feed__close {

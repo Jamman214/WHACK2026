@@ -19,17 +19,35 @@ type Props = {
   onChipClick?: (topicId: string, cardTopicId: string) => void;
   mapOpen?: boolean;                            // controlled map sheet (optional)
   onMapOpenChange?: (open: boolean) => void;
+  mapHasOwnClose?: boolean;                     // the map content renders its own close/back button; skip the generic ✕
 };
+
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
+
+/** Keep Tab / Shift+Tab inside the open sheet (the page behind it is inert as well). */
+function trapTab(e: KeyboardEvent, root: HTMLElement | null) {
+  if (!root) return;
+  const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.getClientRects().length > 0);
+  const active = document.activeElement;
+  if (!items.length) { e.preventDefault(); root.focus(); return; }
+  const first = items[0], last = items[items.length - 1];
+  if (!root.contains(active) || active === root) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  else if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+}
 
 export function Feed({
   known, candidates, provider, pathTo, topicName, map, perTopic = 2,
-  mix, reason, onActiveChange, onChipHover, onChipClick, mapOpen: mapOpenProp, onMapOpenChange,
+  mix, reason, onActiveChange, onChipHover, onChipClick, mapOpen: mapOpenProp, onMapOpenChange, mapHasOwnClose,
 }: Props) {
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [ownMapOpen, setOwnMapOpen] = useState(false);
   const mapOpen = mapOpenProp ?? ownMapOpen;
   const setMapOpen = useCallback((o: boolean) => (onMapOpenChange ? onMapOpenChange(o) : setOwnMapOpen(o)), [onMapOpenChange]);
   const scroller = useRef<HTMLDivElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
+  const mapBtn = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -54,10 +72,26 @@ export function Feed({
     return () => io.disconnect();
   }, [cards, items, onActiveChange]);
 
+  // Focus: into the sheet when it opens (its own back button if it has one), back to ◎ Map when it closes.
+  useEffect(() => {
+    if (mapOpen) {
+      const el = sheet.current;
+      (el?.querySelector<HTMLElement>('[data-autofocus]') ?? el?.querySelector<HTMLElement>('.feed__close') ?? el)?.focus();
+    } else if (wasOpen.current) {
+      mapBtn.current?.focus();
+    }
+    wasOpen.current = mapOpen;
+  }, [mapOpen]);
+
   // j/k or arrow keys step one card (desktop demo); native scroll-snap does the rest.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (mapOpen) { if (e.key === 'Escape') setMapOpen(false); return; }
+      if (mapOpen) {
+        // The map may have handled Escape itself (clearing a selection) and stopped it before it got here.
+        if (e.key === 'Escape') setMapOpen(false);
+        else if (e.key === 'Tab') trapTab(e, sheet.current);
+        return;
+      }
       const el = scroller.current;
       if (!el || (e.target as HTMLElement).closest('input,textarea')) return;
       const dir = ['j', 'ArrowDown'].includes(e.key) ? 1 : ['k', 'ArrowUp'].includes(e.key) ? -1 : 0;
@@ -71,7 +105,7 @@ export function Feed({
 
   return (
     <div className="feed">
-      <div className="feed__scroller" ref={scroller}>
+      <div className="feed__scroller" ref={scroller} inert={map && mapOpen ? true : undefined}>
         {!items && <div className="feed__slide" data-index={-1}><div className="nc nc--skeleton" aria-busy /></div>}
         {cards.map((c, i) => (
           <div className="feed__slide" key={c.id} data-index={i}>
@@ -92,12 +126,12 @@ export function Feed({
 
       {map && (
         <>
-          <button className="feed__mapbtn" onClick={() => setMapOpen(true)} aria-label="Open your map">
+          <button ref={mapBtn} className="feed__mapbtn" onClick={() => setMapOpen(true)} aria-label="Open your map" inert={mapOpen ? true : undefined}>
             ◎ Map
           </button>
           {mapOpen && (
-            <div className="feed__sheet" role="dialog" aria-modal="true" aria-label="Your map">
-              <button className="feed__close" onClick={() => setMapOpen(false)} aria-label="Close map">✕</button>
+            <div className="feed__sheet" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Your map">
+              {!mapHasOwnClose && <button className="feed__close" onClick={() => setMapOpen(false)} aria-label="Close map">✕</button>}
               {map}
             </div>
           )}
