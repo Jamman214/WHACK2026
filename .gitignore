@@ -6,3 +6,9 @@ node_modules/
 data/news.db*
 data/topics.html
 backend/data/clusters.json
+dist
+*.tsbuildinfo
+.DS_Store
+.vite
+.env.local
+.env*.local
