@@ -1,56 +1,28 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CATEGORIES, CATEGORY_BY_ID, LINKS, TOPIC_BY_ID, TOPICS, categoryColor } from "../data/taxonomy";
+import {
+  useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
+  type CSSProperties,
+} from "react";
+import { CATEGORY_BY_ID, TOPIC_BY_ID, TOPICS } from "../data/taxonomy";
 import { DEFAULT_STRENGTH, MODEL } from "../data/model";
-import { CX, CY, MAP_H, MAP_W, OUTER, layout, pathTo, type Layout } from "../lib/layout";
+import { PLANET_INFO } from "../data/planets";
+import type { NewsProvider } from "../feed";
+import { layout, pathTo } from "../lib/layout";
+import { solarModel } from "../lib/solar";
+import AtlasScene, { webglAvailable } from "./AtlasScene";
+import AtlasSvg from "./AtlasSvg";
+import Search from "./atlas/Search";
+import { HomePanel, Overview, PlanetPanel, type PanelCtx } from "./atlas/Panels";
+import {
+  HOME_NAME, SAME_INSETS, catOf, planetName, stepsOut, topicName, type Insets, type PlanetKey,
+} from "./atlas/util";
+import "./atlas.css";
 
-const STRENGTHS: [string, number][] = [["Strong", 0.75], ["Related", 0.5], ["Loose", 0.3], ["All", 0]];
+/** The one bridge strength ("Related") shared by the map, the mini-map and the feed. */
+const THR = DEFAULT_STRENGTH;
 const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-const edgeKey = (a: string, b: string) => (a < b ? a + "|" + b : b + "|" + a);
-const colOf = (id: string) => categoryColor(TOPIC_BY_ID[id].category);
-const catName = (id: string) => CATEGORY_BY_ID[TOPIC_BY_ID[id].category].name;
 
-type Pos = Record<string, { x: number; y: number }>;
-
-/** Tween node positions toward the layout's targets (650ms ease-in-out, as in the prototype). */
-function useTweenedPositions(targets: Layout["nodes"]): Pos {
-  const start = () => Object.fromEntries(TOPICS.map((t) => [t.id, { x: CX, y: CY }]));
-  const [pos, setPos] = useState<Pos>(start);
-  const cur = useRef<Pos>(pos);
-  useEffect(() => {
-    const from = cur.current, t0 = performance.now(), D = reduceMotion() ? 0 : 650;
-    let raf = 0;
-    const step = (now: number) => {
-      const k = D ? Math.min(1, (now - t0) / D) : 1;
-      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-      const next: Pos = {};
-      for (const id in targets) {
-        const f = from[id], t = targets[id];
-        next[id] = { x: f.x + (t.x - f.x) * e, y: f.y + (t.y - f.y) * e };
-      }
-      cur.current = next;
-      setPos(next);
-      if (k < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [targets]);
-  return pos;
-}
-
-/** Open the map with `sel` selected (path highlighted) and the view framed on `center`. */
+/** Open the map on the planet `sel` lives on, with `sel` selected. */
 export interface AtlasFocus { sel: string | null; center: string[] }
-
-/** viewBox fitting the given nodes (zoomed in at most 2x), kept inside the map bounds. */
-function frame(lay: Layout, ids: string[]) {
-  const pts = ids.map((id) => lay.nodes[id]).filter(Boolean);
-  if (!pts.length) return null;
-  const pad = 150, xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
-  const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
-  let w = Math.max(x1 - x0, MAP_W / 2), h = Math.max(y1 - y0, MAP_H / 2);
-  if (w / h > MAP_W / MAP_H) h = (w * MAP_H) / MAP_W; else w = (h * MAP_W) / MAP_H;
-  const clamp = (v: number, max: number) => Math.max(0, Math.min(max, v));
-  return { x: clamp((x0 + x1) / 2 - w / 2, MAP_W - w), y: clamp((y0 + y1) / 2 - h / 2, MAP_H - h), w, h };
-}
 
 interface Props {
   focus?: AtlasFocus;
@@ -60,264 +32,324 @@ interface Props {
   /** What "Reset to starting bubble" returns to (the onboarding result). */
   initialBubble: string[];
   onRedo: () => void;
+  /** Same news source as the feed, so a planet's stories match what the feed would show. */
+  provider: NewsProvider;
+  /** Leave the map and go back to the feed. When given, the map shows its own "Back to feed" button. */
+  onClose?: () => void;
 }
 
-export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, onRedo }: Props) {
+function useMedia(query: string) {
+  const [m, setM] = useState(() => matchMedia(query).matches);
+  useEffect(() => {
+    const mq = matchMedia(query);
+    const f = () => setM(mq.matches);
+    f();
+    mq.addEventListener("change", f);
+    return () => mq.removeEventListener("change", f);
+  }, [query]);
+  return m;
+}
+
+/** The flat fallback map is small at full panel clearance, so on wide screens let it run half-way under the panels. */
+const svgInset = (i: Insets, mobile: boolean): CSSProperties => {
+  const k = mobile ? 1 : 0.5;
+  return { inset: `${i.top}px ${i.right * k}px ${i.bottom}px ${i.left * k}px` };
+};
+
+/*
+ * Navigation state: three levels, two variables.
+ *   planet = null            Map      (overview: where to next)
+ *   planet = "home" | cat    Planet   (your knowledge, or one category)
+ *   planet + sel             Topic    (one topic expanded inside its planet; `sel` always belongs to `planet`)
+ */
+export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, onRedo, provider, onClose }: Props) {
   const known = useMemo(() => new Set(bubble), [bubble]);
   const setKnown = (k: Set<string>) => onBubbleChange([...k]);
-  const [thr, setThr] = useState(DEFAULT_STRENGTH);
-  const [sel, setSel] = useState<string | null>(focus?.sel ?? null);
-  const [names, setNames] = useState<"near" | "all">("near");
+  const lay = useMemo(() => layout(MODEL, known, THR), [known]);
+  const sm = useMemo(() => solarModel(lay, MODEL), [lay]);
 
-  const lay = useMemo(() => layout(MODEL, known, thr), [known, thr]);
-  const pos = useTweenedPositions(lay.nodes);
-  const [view, setView] = useState(() => (focus?.center.length ? frame(lay, focus.center) : null));
+  const focusSel = focus?.sel && TOPIC_BY_ID[focus.sel] ? focus.sel : null;
+  const [planet, setPlanet] = useState<PlanetKey | null>(() => (focusSel ? catOf(focusSel) : null));
+  const [sel, setSel] = useState<string | null>(focusSel);
+  // What the camera frames: topic ids (a fresh object re-triggers the fly-to), or null for the whole map.
+  const [view, setView] = useState<{ ids: string[] | null }>(() => ({
+    ids: focus?.center.length ? focus.center : focusSel ? [focusSel, ...pathTo(lay, focusSel)] : null,
+  }));
+  const [moved, setMoved] = useState(false);
+  // Bumped by Home / Map: the 3D scene flies back to its default overview framing.
+  const [recenter, setRecenter] = useState(0);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSel(null); };
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
+  // WebGL scene by default; the flat SVG when WebGL is missing or fails to start.
+  const [gl, setGl] = useState(webglAvailable);
+  const mobile = useMedia("(max-width: 767px)");
+  const [panelOpen, setPanelOpen] = useState(() => !matchMedia("(max-width: 767px)").matches || !!focusSel);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [announce, setAnnounce] = useState("");
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const tlRef = useRef<HTMLDivElement>(null);
+  const sideRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // --- navigation ----------------------------------------------------------------------------
+  const exploredLine = (id: keyof typeof PLANET_INFO, k: Set<string> = known) => {
+    const c = CATEGORY_BY_ID[id];
+    return `${c.name}: ${c.topics.filter((t) => k.has(t.id)).length} of ${c.topics.length} explored.`;
+  };
+  const openPlanet = useCallback((id: PlanetKey) => {
+    setPlanet(id); setSel(null); setMoved(false); setPanelOpen(true);
+    setView({ ids: id === "home" ? [...known] : CATEGORY_BY_ID[id].topics.map((t) => t.id) });
+    if (id === "home") setAnnounce("Your knowledge, the centre of the map. Details are in the side panel.");
+    else {
+      const p = sm.planets[id];
+      const far = !Number.isFinite(p.orbit) ? "Out of reach" : p.complete ? "Fully explored" : stepsOut(p.orbit);
+      setAnnounce(`${planetName(id)} planet. ${PLANET_INFO[id].tagline}. ${far}. ${p.explored.length} of ${p.topics.length} explored. Details are in the side panel.`);
+    }
+  }, [sm, known]);
+  const openTopic = useCallback((id: string) => {
+    setPlanet(catOf(id)); setSel(id); setMoved(false); setPanelOpen(true);
+    setView({ ids: [id, ...pathTo(lay, id)] });
+    const ring = lay.nodes[id].ring;
+    setAnnounce(`${topicName(id)}, ${planetName(catOf(id))} planet, ${ring === 0 ? "in your bubble" : Number.isFinite(ring) ? stepsOut(ring) : "out of reach"}. Details are in the side panel.`);
+  }, [lay]);
+  const toggleTopic = useCallback((id: string) => {
+    if (sel === id) { setSel(null); setAnnounce(`${topicName(id)} closed.`); } else openTopic(id);
+  }, [sel, openTopic]);
+  const goMap = useCallback(() => {
+    setPlanet(null); setSel(null); setMoved(false); setView({ ids: null }); setRecenter((n) => n + 1);
+    setAnnounce("Back to the whole map.");
   }, []);
 
-  const selPath = sel ? pathTo(lay, sel) : [];
-  const onPath = new Set(selPath);
-  const pathEdges = new Set(selPath.slice(1).map((id, i) => edgeKey(selPath[i], id)));
+  // Panel actions re-render the panel under the pointer. If that dropped focus on <body>, bring it back
+  // to the panel's heading so keyboard and screen-reader users aren't stranded.
+  const [focusTick, setFocusTick] = useState(0);
+  const toPanel = useCallback(() => setFocusTick((t) => t + 1), []);
+  useEffect(() => {
+    if (!focusTick) return;
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.isConnected) bodyRef.current?.querySelector<HTMLElement>("[data-focus]")?.focus({ preventScroll: true });
+  }, [focusTick]);
 
-  const add = (id: string) => setKnown(new Set([...known, id]));
-  const remove = (id: string) => { const k = new Set(known); k.delete(id); setKnown(k); };
-  const reset = () => { setKnown(new Set(initialBubble)); setSel(null); };
+  // New level: start at the top. New topic: scroll it into view inside the panel.
+  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [planet]);
+  useEffect(() => {
+    if (!sel) return;
+    bodyRef.current?.querySelector<HTMLElement>(".topic[data-sel]")
+      ?.scrollIntoView({ block: "start", behavior: reduceMotion() ? "auto" : "smooth" });
+  }, [sel, planet]);
+
+  const add = useCallback((id: string) => {
+    const next = new Set([...known, id]);
+    setKnown(next);
+    setAnnounce(`${topicName(id)} added to your bubble. ${exploredLine(catOf(id), next)}`);
+    toPanel();
+  }, [known]); // eslint-disable-line react-hooks/exhaustive-deps
+  const remove = useCallback((id: string) => {
+    const next = new Set(known); next.delete(id);
+    setKnown(next);
+    setAnnounce(`${topicName(id)} removed from your bubble. ${exploredLine(catOf(id), next)}`);
+    toPanel();
+  }, [known]); // eslint-disable-line react-hooks/exhaustive-deps
+  const reset = () => { setKnown(new Set(initialBubble)); setSel(null); setAnnounce("Bubble reset to where you started."); toPanel(); };
+
+  // From the panels: navigate, then rescue focus if the clicked control went away.
+  const ctx: PanelCtx = {
+    lay, sm, known, provider,
+    openPlanet: (id) => { openPlanet(id); toPanel(); },
+    openTopic: (id) => { openTopic(id); toPanel(); },
+    toggleTopic,
+    add, remove,
+    goMap: () => { goMap(); toPanel(); },
+    reset,
+  };
+  const leaveTopic = () => { setSel(null); setAnnounce("Topic closed."); toPanel(); };
+
+  // --- Esc: close search, clear the topic, leave the planet, and only then leave the map ---------------
+  // Capture phase + stopPropagation so Feed's own Esc handler doesn't also close the sheet.
+  const st = useRef({ sel, planet, searchOpen, onClose });
+  st.current = { sel, planet, searchOpen, onClose };
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key === "Escape") {
+        const s = st.current;
+        if (s.searchOpen) setSearchOpen(false);
+        else if (s.sel) { setSel(null); setAnnounce("Topic closed."); toPanel(); }
+        else if (s.planet) { goMap(); toPanel(); }
+        else if (s.onClose) s.onClose();
+        else return;
+        e.preventDefault();
+        e.stopPropagation();
+      } else if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !t?.closest("input,textarea,select,[contenteditable]")) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        setSearchOpen(true);
+      }
+    };
+    addEventListener("keydown", onKey, true);
+    return () => removeEventListener("keydown", onKey, true);
+  }, [goMap, toPanel]);
+
+  // --- tell the scene how much of the canvas the overlays cover -------------------------------------
+  const [insets, setInsets] = useState<Insets>({ top: 0, right: 0, bottom: 0, left: 0 });
+  useLayoutEffect(() => {
+    const root = rootRef.current, tl = tlRef.current, side = sideRef.current;
+    if (!root || !tl || !side) return;
+    const G = 12;
+    const measure = () => {
+      const r = root.getBoundingClientRect(), a = tl.getBoundingClientRect(), s = side.getBoundingClientRect();
+      const next: Insets = mobile
+        ? { top: Math.round(a.bottom - r.top + G), right: 0, bottom: Math.round(r.bottom - s.top + G), left: 0 }
+        : { top: 0, right: Math.round(r.right - s.left + G), bottom: 0, left: Math.round(a.right - r.left + G) };
+      setInsets((p) => (SAME_INSETS(p, next) ? p : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    [root, tl, side].forEach((el) => ro.observe(el));
+    return () => ro.disconnect();
+  }, [mobile]);
+
+  const vars = {
+    "--in-t": insets.top + "px", "--in-r": insets.right + "px", "--in-b": insets.bottom + "px", "--in-l": insets.left + "px",
+  } as CSSProperties;
+  const bodyId = useId();
+  const pct = Math.round((known.size / TOPICS.length) * 100);
+  const panelLabel = planet === null ? "Map" : planetName(planet);
 
   return (
-    <div className="screen theme-atlas fade">
-      <div className="wrap">
-        <header>
-          <div>
-            <h1>Topic Atlas</h1>
-            <p className="sub">
-              Your bubble sits in the middle. Every other topic is placed by how many bridges it takes to reach it from
-              what you already know. Add a topic to your bubble and the map redraws around you.
-            </p>
-          </div>
-          <div className="controls">
-            <Seg label="Bridges allowed" options={STRENGTHS} value={thr} onChange={setThr} />
-            <Seg label="Topic names" options={[["Nearby", "near"], ["All", "all"]] as const} value={names} onChange={setNames} />
-            <button className="link" onClick={onRedo}>Redo onboarding</button>
-          </div>
-        </header>
-
-        <div className="main">
-          <div className="map">
-            {view && <button className="btn mapzoom" onClick={() => setView(null)}>Show whole map</button>}
-            <svg viewBox={view ? `${view.x} ${view.y} ${view.w} ${view.h}` : `0 0 ${MAP_W} ${MAP_H}`} role="img" aria-label="Radial map: your known topics in the centre, other topics placed by bridge distance">
-              <g>
-                {lay.ringRadius.slice(1).map((r, i) => {
-                  const k = i + 1, out = lay.hasOut && k === lay.rings;
-                  return (
-                    <g key={k}>
-                      <circle cx={CX} cy={CY} r={r} className="ring" />
-                      <text x={CX} y={CY - r - 8} textAnchor="middle" className="ringlbl">
-                        {out ? "Out of reach at this strength" : k === 1 ? "Frontier · 1 bridge" : k + " bridges"}
-                      </text>
-                    </g>
-                  );
-                })}
-              </g>
-              <circle cx={CX} cy={CY} r={lay.rb} className="bubble" />
-              <g>
-                {LINKS.map((l) => {
-                  const A = lay.nodes[l.a], B = lay.nodes[l.b];
-                  const tree = A.parent === l.b || B.parent === l.a, inside = A.ring === 0 && B.ring === 0;
-                  const hot = pathEdges.has(edgeKey(l.a, l.b)), touchSel = sel && (l.a === sel || l.b === sel);
-                  const child = A.parent === l.b ? A : B;
-                  let op = 0, w = 1, dash = "", col = "var(--edge)";
-                  if (l.w >= thr) {
-                    if (hot) { op = 0.95; w = 2 + l.w * 4; col = colOf(child.id); }
-                    else if (tree) { op = 0.25 + l.w * 0.45; w = 1 + l.w * 2.6; col = colOf(child.id); }
-                    else if (inside) { op = 0.35; w = 1 + l.w * 2; col = "var(--accent)"; }
-                    else if (touchSel) { op = 0.35; w = 1 + l.w * 1.5; dash = "3 4"; }
-                    else { op = 0.05; w = 0.6; }
-                  }
-                  const pa = pos[l.a], pb = pos[l.b];
-                  return (
-                    <line key={l.a + "|" + l.b} className="edge" x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y}
-                      style={{ opacity: op, strokeWidth: w, strokeDasharray: dash, stroke: col }} />
-                  );
-                })}
-              </g>
-              <g>
-                {TOPICS.map((t) => {
-                  const n = lay.nodes[t.id], p = pos[t.id];
-                  const out = n.ring === Infinity;
-                  const fog = n.ring === 0 ? 1 : out ? 0.22 : Math.max(0.3, 1 - (n.ring - 1) * 0.22);
-                  const focus = onPath.has(t.id) || t.id === sel;
-                  const showName = names === "all" || n.ring <= 1 || focus;
-                  const right = p.x >= CX;
-                  return (
-                    <g key={t.id} className={"node" + (n.ring === 0 ? " known" : "") + (t.id === sel ? " sel" : "")}
-                      tabIndex={0} role="button" aria-label={`${t.name}, ${catName(t.id)}`}
-                      onClick={() => setSel(t.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(t.id); } }}>
-                      <circle cx={p.x} cy={p.y} r={n.ring === 0 ? 9 : 7} style={{ fill: colOf(t.id), opacity: focus ? 1 : fog }} />
-                      <text x={p.x + (right ? 12 : -12)} y={p.y + 4} textAnchor={right ? "start" : "end"}
-                        style={{ opacity: showName ? (focus ? 1 : Math.max(fog, 0.55)) : 0 }}>
-                        {t.name}
-                      </text>
-                    </g>
-                  );
-                })}
-              </g>
-              <g>
-                <text x={CX} y={CY - lay.rb - 10} textAnchor="middle" className="bubblelbl">Your bubble</text>
-                {CATEGORIES.map((c) => {
-                  const a = MODEL.sectors[c.id].mid, r = OUTER + 52, cos = Math.cos(a);
-                  return (
-                    <text key={c.id} x={CX + cos * r} y={CY + Math.sin(a) * r + 4} className="clabel"
-                      textAnchor={Math.abs(cos) < 0.25 ? "middle" : cos > 0 ? "start" : "end"} style={{ fill: categoryColor(c.id) }}>
-                      {c.name}
-                    </text>
-                  );
-                })}
-              </g>
-            </svg>
-          </div>
-          <aside>
-            <div className="panel">
-              <Meter known={known.size} />
-              {sel ? (
-                <Detail id={sel} lay={lay} thr={thr} known={known} select={setSel} add={add} remove={remove} />
-              ) : (
-                <Overview lay={lay} known={known} select={setSel} reset={reset} />
-              )}
+    <div ref={rootRef} className="screen theme-atlas atlas fade" style={vars}>
+      <div className="atlas__ui">
+        {/* top-left: the way back, where you are in the map, and the keyboard-friendly topic finder */}
+        <div className="ov-tl" ref={tlRef}>
+          <section className="ov ov-head" aria-labelledby="atlas-title">
+            {onClose && (
+              <button type="button" className="at-back" data-autofocus onClick={onClose}>
+                <span aria-hidden="true" className="at-back__arrow">←</span>
+                <span>Back to your feed</span>
+                <kbd aria-hidden="true">Esc</kbd>
+              </button>
+            )}
+            <div className="ov-head__text">
+              <h1 id="atlas-title">Topic Atlas</h1>
+              <p className="sub">You are the sun. The further out a planet orbits, the further it is from what you know.</p>
             </div>
-            <p className="note">
-              Distance is the fewest bridges from your bubble using links at or above the chosen strength. Each topic hangs
-              off its strongest link one ring closer in. Weights are hand-estimated placeholders for embedding similarity.
-            </p>
-          </aside>
+          </section>
+
+          <div className="ov ov-crumb">
+            <button type="button" className="at-home" data-moved={moved || undefined} onClick={() => { goMap(); toPanel(); }}
+              title="Show the whole map">
+              <span aria-hidden="true">⌂</span> Home<span className="sr-only">: show the whole map</span>
+            </button>
+            <Crumbs planet={planet} sel={sel} mobile={mobile} goMap={ctx.goMap} leaveTopic={leaveTopic} />
+          </div>
+
+          <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} />
         </div>
+
+        {/* right (desktop) / bottom sheet (mobile): progress + the panel for the current level */}
+        <aside ref={sideRef} className="ov ov-side" aria-label={`${panelLabel}: your bubble and details`} data-open={panelOpen}>
+          <div className="side__bar">
+            <div className="meter">
+              <div className="top"><span>World explored</span><strong>{pct}%</strong></div>
+              <div className="track" role="progressbar" aria-label="World explored" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><b style={{ width: pct + "%" }} /></div>
+              <span className="note">{known.size} of {TOPICS.length} topics in your bubble</span>
+            </div>
+            <button type="button" className="at-btn at-toggle" aria-expanded={panelOpen} aria-controls={bodyId} onClick={() => setPanelOpen((o) => !o)}>
+              <span aria-hidden="true">{panelOpen ? "▾" : "▴"}</span>
+              <span>{panelOpen ? "Hide" : "Details"}</span>
+              <span className="sr-only">{panelOpen ? " panel" : " panel: where to next and planet details"}</span>
+            </button>
+          </div>
+          <div id={bodyId} ref={bodyRef} className="side__body" hidden={!panelOpen}>
+            {planet === null ? <Overview {...ctx} />
+              : planet === "home" ? <HomePanel {...ctx} />
+              : <PlanetPanel {...ctx} id={planet} sel={sel} />}
+            <div className="side__foot">
+              <Legend />
+              <p className="note">
+                Distance is the fewest “Related” bridges from your bubble. Each planet shows only its strongest route back to you.
+                Weights are hand-estimated placeholders for embedding similarity.
+              </p>
+              <button type="button" className="at-link" onClick={onRedo}>Redo onboarding</button>
+            </div>
+          </div>
+        </aside>
+
+        {/* bottom-left (desktop): legend + gesture hint */}
+        <div className="ov ov-legend">
+          <Legend />
+          <p className="hint" aria-hidden="true">Drag to orbit · scroll to zoom · click a planet</p>
+        </div>
+
+        <p id="atlas-kbd" className="sr-only">
+          Keyboard: press slash to find a topic. In the topic list use the arrow keys and Enter to open its planet.
+          Escape closes the list, then the open topic, then the planet back to the map, and from the map it takes you back to your feed.
+        </p>
+        <div className="sr-only" role="status" aria-live="polite">{announce}</div>
+      </div>
+
+      {/* the map fills the whole screen; everything above floats over it */}
+      <div className="atlas__stage">
+        {gl ? (
+          <AtlasScene lay={lay} thr={THR} planet={planet} sel={planet === "home" ? null : sel} recenter={recenter} insets={insets}
+            onPlanet={openPlanet} onSelect={openTopic}
+            onUserMove={() => setMoved(true)} onUnsupported={() => setGl(false)} />
+        ) : (
+          <div className="atlas__svgbox" style={svgInset(insets, mobile)}>
+            <AtlasSvg lay={lay} thr={THR} sel={sel} names="all" viewIds={view.ids} onSelect={openTopic} />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function Seg<T extends string | number>({ label, options, value, onChange }: {
-  label: string; options: readonly (readonly [string, T])[]; value: T; onChange: (v: T) => void;
+/** Map › Planet › Topic. Every earlier crumb is a button; the last is the page you are on. On phones: one "‹ parent" button. */
+function Crumbs({ planet, sel, mobile, goMap, leaveTopic }: {
+  planet: PlanetKey | null; sel: string | null; mobile: boolean; goMap: () => void; leaveTopic: () => void;
 }) {
-  return (
-    <div className="seg-wrap">
-      <span className="seg-label">{label}</span>
-      <div className="seg" role="group" aria-label={label}>
-        {options.map(([name, v]) => (
-          <button key={name} aria-pressed={v === value} onClick={() => onChange(v)}>{name}</button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Meter({ known }: { known: number }) {
-  const pct = Math.round((known / TOPICS.length) * 100);
-  return (
-    <div className="meter">
-      <div className="top"><span>World explored</span><span><strong>{pct}%</strong></span></div>
-      <div className="track"><b style={{ width: pct + "%" }} /></div>
-      <span className="note">{known} of {TOPICS.length} topics in your bubble</span>
-    </div>
-  );
-}
-
-function Row({ name, sub, w, col, onClick }: { name: string; sub?: string; w: number; col: string; onClick?: () => void }) {
-  return (
-    <li onClick={onClick}>
-      <span className="nm">{name}{sub && <small>{sub}</small>}</span>
-      <span className="bar"><b style={{ width: w * 100 + "%", background: col }} /></span>
-      <span className="val">{w ? w.toFixed(2) : ""}</span>
-    </li>
-  );
-}
-
-function Sec({ title, empty, children }: { title: string; empty: string; children: ReactNode[] }) {
-  return (
-    <div className="sec">
-      <h3>{title}</h3>
-      <ul>{children.length ? children : <li className="empty plain">{empty}</li>}</ul>
-    </div>
-  );
-}
-
-function Overview({ lay, known, select, reset }: { lay: Layout; known: Set<string>; select: (id: string) => void; reset: () => void }) {
-  const frontier = Object.values(lay.nodes).filter((n) => n.ring === 1).sort((a, b) => b.pw - a.pw).slice(0, 8);
-  return (
-    <>
-      <h2>Your bubble</h2>
-      <Sec title="What you know" empty="">
-        {[...known].map((id) => <Row key={id} name={TOPIC_BY_ID[id].name} sub={catName(id)} w={0} col={colOf(id)} onClick={() => select(id)} />)}
-      </Sec>
-      <Sec title="Frontier: one bridge away" empty="Nothing reachable at this strength. Allow looser bridges.">
-        {frontier.map((n) => (
-          <Row key={n.id} name={TOPIC_BY_ID[n.id].name} sub={"from " + TOPIC_BY_ID[n.parent!].name} w={n.pw} col={colOf(n.id)} onClick={() => select(n.id)} />
-        ))}
-      </Sec>
-      <div className="btnrow"><button className="btn" onClick={reset}>Reset to starting bubble</button></div>
-    </>
-  );
-}
-
-function Detail({ id, lay, thr, known, select, add, remove }: {
-  id: string; lay: Layout; thr: number; known: Set<string>;
-  select: (id: string | null) => void; add: (id: string) => void; remove: (id: string) => void;
-}) {
-  const t = TOPIC_BY_ID[id], n = lay.nodes[id];
-  let body: ReactNode;
-  if (n.ring === 0) {
-    const out = MODEL.adj[id].filter((e) => e.w >= thr && lay.nodes[e.o].ring === 1).sort((a, b) => b.w - a.w);
-    body = (
-      <>
-        <span className="kicker">In your bubble</span>
-        <Sec title="Bridges out from here" empty="No bridges out at this strength.">
-          {out.map((e) => <Row key={e.o} name={TOPIC_BY_ID[e.o].name} sub={catName(e.o)} w={e.w} col={colOf(e.o)} onClick={() => select(e.o)} />)}
-        </Sec>
-      </>
-    );
-  } else if (n.ring === Infinity) {
-    body = (
-      <>
-        <span className="kicker">Out of reach</span>
-        <p className="empty">No chain of bridges reaches this topic at the current strength. Allow looser bridges to find a route.</p>
-      </>
-    );
-  } else {
-    body = (
-      <>
-        <span className="kicker">{n.ring === 1 ? "Frontier · 1 bridge away" : n.ring + " bridges away"}</span>
-        <div className="sec">
-          <h3>How you get here</h3>
-          <ol className="path">
-            {pathTo(lay, id).map((s, i) => (
-              <li key={s} onClick={() => select(s)}>
-                <span className="dot" style={{ background: colOf(s) }} />
-                <span className="nm">{TOPIC_BY_ID[s].name}<small>{i === 0 ? "You know this" : catName(s)}</small></span>
-                <span className="val">{i ? lay.nodes[s].pw.toFixed(2) : ""}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </>
+  const crumbs: { label: string; go?: () => void }[] = [{ label: "Map", go: goMap }];
+  if (planet) crumbs.push({ label: planet === "home" ? HOME_NAME : planetName(planet), go: leaveTopic });
+  if (sel) crumbs.push({ label: topicName(sel) });
+  crumbs[crumbs.length - 1] = { label: crumbs[crumbs.length - 1].label };
+  // Up from the planet means "clear the topic", but with no topic the planet crumb is already last.
+  if (mobile) {
+    const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
+    const here = crumbs[crumbs.length - 1].label;
+    return (
+      <nav className="crumbs crumbs--m" aria-label="Breadcrumb">
+        {parent ? (
+          <button type="button" className="crumb" onClick={parent.go}>
+            <span aria-hidden="true">‹</span> <span className="sr-only">Up to </span>{parent.label}
+          </button>
+        ) : (
+          <span className="crumb crumb--here" aria-current="page">{here}</span>
+        )}
+      </nav>
     );
   }
   return (
-    <>
-      <span className="chip"><i style={{ background: colOf(id) }} /><span>{catName(id)}</span></span>
-      <h2>{t.name}</h2>
-      {body}
-      <div className="btnrow">
-        {n.ring !== 0 ? (
-          <button className="btn primary" onClick={() => add(id)}>Add to my bubble</button>
-        ) : known.size > 1 ? (
-          <button className="btn" onClick={() => remove(id)}>Remove from bubble</button>
-        ) : null}
-        <button className="btn" onClick={() => select(null)}>Back to overview</button>
-      </div>
-    </>
+    <nav className="crumbs" aria-label="Breadcrumb">
+      <ol>
+        {crumbs.map((c, i) => (
+          <li key={i}>
+            {c.go ? <button type="button" className="crumb" onClick={c.go}>{c.label}</button>
+              : <span className="crumb crumb--here" aria-current="page">{c.label}</span>}
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+function Legend() {
+  return (
+    <ul className="at-legend" aria-label="Map key">
+      <li><i className="sw sw--sun" aria-hidden="true" />☀ You: your knowledge, at the centre</li>
+      <li><i className="sw sw--ring" aria-hidden="true" />Orbit ring: steps from you</li>
+      <li><i className="sw sw--link" aria-hidden="true" />Route: strongest connection toward you</li>
+      <li><i className="sw sw--lit" aria-hidden="true" />Lit dot: explored</li>
+    </ul>
   );
 }

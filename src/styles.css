@@ -142,21 +142,7 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
   --c-media: #d4a373; --c-law: #94a3b8; --c-mental: #e879f9; --c-resources: #4ade80; color-scheme: dark;
 }
 
-.theme-atlas .wrap { max-width: 1360px; margin: 0 auto; padding: 24px 16px 32px; display: grid; gap: 18px; }
-.theme-atlas header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px; }
-.theme-atlas h1 { font-family: var(--display); font-size: 28px; line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
-.theme-atlas .sub { color: var(--muted); margin: 4px 0 0; max-width: 66ch; }
-.theme-atlas .controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
-.theme-atlas .seg-wrap { display: grid; gap: 6px; }
-.theme-atlas .seg-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-.theme-atlas .seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
-.theme-atlas .seg button { font: 500 13px var(--body); color: var(--muted); background: none; border: 0; border-radius: 7px; padding: 6px 12px; cursor: pointer; }
-.theme-atlas .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
-.theme-atlas .seg button:focus-visible, .theme-atlas .btn:focus-visible, .theme-atlas .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.theme-atlas .link { font: 500 13px var(--body); color: var(--accent); background: none; border: 0; padding: 6px 2px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.theme-atlas .main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
-.theme-atlas .map { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
-.theme-atlas svg { display: block; width: 100%; height: auto; max-height: calc(100vh - 150px); }
+/* Atlas layout and overlays live in src/screens/atlas.css; these are the SVG fallback map's marks. */
 .theme-atlas .ring { fill: none; stroke: var(--line); stroke-dasharray: 4 5; }
 .theme-atlas .ringlbl { font: 500 12.5px var(--mono); fill: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
 .theme-atlas .bubble { fill: var(--accent); fill-opacity: 0.09; stroke: var(--accent); stroke-width: 2; }
@@ -171,45 +157,10 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-atlas .node.sel text { font-weight: 700; }
 .theme-atlas .node:focus { outline: none; }
 .theme-atlas .node:focus-visible circle { stroke: var(--accent); stroke-width: 3; }
-.theme-atlas aside { display: grid; gap: 12px; min-width: 0; }
-.theme-atlas .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
-.theme-atlas .panel h2 { font-family: var(--display); font-size: 20px; margin: 0; line-height: 1.15; text-wrap: balance; }
-.theme-atlas .meter { display: grid; gap: 6px; }
-.theme-atlas .meter .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted); }
-.theme-atlas .meter strong { font-family: var(--mono); font-size: 22px; color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
-.theme-atlas .track { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
-.theme-atlas .track b { display: block; height: 100%; background: var(--accent); transition: width 0.5s; }
-.theme-atlas .chip { justify-self: start; display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--body); color: var(--muted); }
-.theme-atlas .chip i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.theme-atlas .kicker { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-.theme-atlas .sec { display: grid; gap: 7px; }
-.theme-atlas .sec h3 { margin: 0; font: 600 12px var(--body); color: var(--muted); }
-.theme-atlas ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
-.theme-atlas li { display: grid; grid-template-columns: minmax(0, 1fr) 56px 34px; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-.theme-atlas li:hover .nm { text-decoration: underline; }
-.theme-atlas li.plain { grid-template-columns: minmax(0, 1fr); cursor: default; }
-.theme-atlas li.plain:hover .nm { text-decoration: none; }
-.theme-atlas .nm small { display: block; color: var(--muted); font-size: 11.5px; }
-.theme-atlas .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.theme-atlas .bar b { display: block; height: 100%; }
-.theme-atlas .val { font-family: var(--mono); font-size: 12px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-.theme-atlas .empty { color: var(--muted); font-size: 13px; }
-.theme-atlas ol.path { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-.theme-atlas ol.path li { grid-template-columns: 14px minmax(0, 1fr) 34px; gap: 10px; cursor: pointer; align-items: start; position: relative; padding-bottom: 10px; }
-.theme-atlas ol.path li:last-child { padding-bottom: 0; }
-.theme-atlas ol.path li::before { content: ""; position: absolute; left: 6px; top: 14px; bottom: -2px; width: 2px; background: var(--line); }
-.theme-atlas ol.path li:last-child::before { display: none; }
-.theme-atlas ol.path .dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 2px; border: 2px solid var(--surface); }
-.theme-atlas .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
-.theme-atlas .btn { font: 600 13px var(--body); border-radius: 9px; padding: 8px 14px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
-.theme-atlas .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
-.theme-atlas .note { font-size: 12px; color: var(--muted); margin: 0; }
-@media (max-width: 900px) { .theme-atlas .main { grid-template-columns: 1fr; } }
 
 /* ============ Home (feed + map sheet) ============ */
-/* The Atlas is taller than the viewport; let it scroll inside the feed's full-screen sheet. */
-.home__map { height: 100%; overflow-y: auto; }
-.home__map .screen { min-height: 100%; }
+/* The Atlas fills the feed's full-screen sheet; its own overlays scroll, the page never does. */
+.home__map { height: 100%; overflow: hidden; }
 
 /* Ring colours: how far outside the bubble (badges, mini-map path). */
 .theme-board { --ring-1: #0f766e; --ring-2: #b45309; --ring-3: #be185d; }
@@ -269,7 +220,3 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .mm__pulse { fill: none; stroke: var(--accent); stroke-width: 5; transform-box: fill-box; transform-origin: center; animation: mm-pulse 1s ease-out infinite; }
 @keyframes mm-pulse { from { transform: scale(0.8); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mm__pulse { animation: none; } .mm__region { transition: none; } }
-
-/* Atlas opened at a story: framed view + way back out */
-.theme-atlas .map { position: relative; }
-.theme-atlas .mapzoom { position: absolute; top: 12px; left: 12px; z-index: 1; }
