@@ -23,7 +23,7 @@ export default function App() {
 
   switch (screen.name) {
     case "intro":
-      return <Intro onStart={() => toOnboarding(false)} onDemo={() => toOnboarding(true)} />;
+      return <Intro onStart={() => toOnboarding(false)} />;
     case "onboarding":
       return (
         <Onboarding key={screen.run} autoDemo={screen.autoDemo}
