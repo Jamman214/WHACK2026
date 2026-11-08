@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORIES, DEMO_BUBBLE, LINKS, TOPICS } from "../data/taxonomy";
-import { bubbleFrom, demoSeen } from "../data/headlines";
+import { bubbleFrom } from "../data/headlines";
 import { BALL_RADIUS, BOARD_W, SPLIT, ballPosition, bucketRect, createSplitBoard, landTime, pathDuration, pathEvents, scriptedPath } from "./galton";
 import { CX, CY, buildModel, layout, pathTo } from "./layout";
 import { bubbleAfterRead } from "./reading";
@@ -192,10 +192,8 @@ describe("onboarding bubble", () => {
     expect(bubbleFrom(["ai", "chips"], ["ai", "rates", "water"])).toEqual(["ai", "chips"]);
   });
 
-  it("falls back to the demo rule's picks with fewer than 2 known topics", () => {
-    const shown = ["ai", "rates", "water", "sport", "cyber"];
-    expect(shown.filter((_, i) => demoSeen(i))).toEqual(["ai", "sport"]);
-    expect(bubbleFrom(["ai"], shown)).toEqual(["ai", "sport"]);
+  it("falls back to the swiped-in topics with fewer than 2 known topics", () => {
+    expect(bubbleFrom(["ai"], ["sport"])).toEqual(["ai", "sport"]);
     expect(bubbleFrom([], [])).toEqual([]);
   });
 });

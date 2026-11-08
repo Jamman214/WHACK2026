@@ -251,7 +251,7 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
           </div>
           <div className="choices">
             {done ? (
-              <button className="btn primary big" ref={mapBtnRef} onClick={() => onDone(bubbleFrom(known.current, deck.current.map((c) => c.topicId)), history.current)}>
+              <button className="btn primary big" ref={mapBtnRef} onClick={() => onDone(bubbleFrom(known.current, deck.current.filter((_, i) => history.current[i]?.swipe === "right").map((c) => c.topicId)), history.current)}>
                 Open your feed →
               </button>
             ) : (
