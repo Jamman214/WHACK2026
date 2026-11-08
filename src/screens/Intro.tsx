@@ -1,6 +1,6 @@
-interface Props { onStart: () => void; onDemo: () => void }
+interface Props { onStart: () => void; }
 
-export default function Intro({ onStart, onDemo }: Props) {
+export default function Intro({ onStart }: Props) {
   return (
     <div className="screen theme-board intro fade">
       <div className="hero">
@@ -12,7 +12,6 @@ export default function Intro({ onStart, onDemo }: Props) {
         </p>
         <div className="choices">
           <button className="btn primary big" onClick={onStart} autoFocus>Start</button>
-          <button className="btn big" onClick={onDemo}>Use demo feed</button>
         </div>
       </div>
     </div>

@@ -84,18 +84,21 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board:not(.intro) .btn.big { font-size: 20px; padding: 15px 26px; }
 .theme-board:not(.intro) .btn kbd { font-size: 13px; }
 .theme-board:not(.intro) .deck .choices { height: 64px; gap: 12px; }
-.theme-board:not(.intro) .summary { font-size: 15px; }
-/* pull the board up under the answer buttons: its top ~7% is empty canvas above the funnel. It never takes clicks, so overlapping them is safe */
 .theme-board:not(.intro) .deck { gap: 8px; }
-.theme-board .board.is-3d { margin-top: -6%; pointer-events: none; }
+.theme-board .board.is-3d { pointer-events: none; }
 .theme-board .board {
   width: 100%; max-width: 1440px; align-self: center; position: relative; background: var(--surface);
   border: 1px solid var(--line); border-radius: 14px; padding: 10px; overflow: hidden;
+  /* takes whatever height the rest of the screen leaves; the canvas fits inside it */
+  flex: 1 1 0; min-height: 140px; container-type: size;
 }
-.theme-board canvas { display: block; width: 100%; height: auto; }
+.theme-board .board canvas { display: block; width: min(100cqw, calc(100cqh * 480 / 242)); height: auto; aspect-ratio: 480 / 242; margin-inline: auto; }
 /* 3D board: no box, the scene's own backboard and shadows form the edge */
-.theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: visible; max-width: 1440px; }
-.theme-board .board.is-3d canvas { aspect-ratio: 480 / 242; height: auto; }
+.theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: clip; max-width: none; }
+/* the canvas has empty margin above the funnel (~0.072 of its width) and below the buckets' shadow (~0.017), so the drawn board
+   fills the box edge to edge: it slides up by 0.073 (the board never takes clicks) and the box clips the empty bottom strip.
+   0.416 = canvas height/width (242/480 = 0.504) minus the 0.073 slide and the 0.015 clipped strip */
+.theme-board .board.is-3d canvas { --w: min(100cqw, calc(100cqh / 0.416)); width: var(--w); margin-top: calc(var(--w) * -0.073); }
 /* counter cards in the bottom corners; --bk is board-units -> px and --bump (0..1) is set by the renderer while the bucket glows */
 .theme-board .board-card {
   position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; --bump: 0; --bk: 1;
@@ -115,12 +118,53 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 }
 .theme-board .board-card.s .num { color: color-mix(in srgb, currentColor, var(--good) calc(var(--bump) * 100%)); }
 .theme-board .board-card.u .num { color: color-mix(in srgb, currentColor, var(--bad) calc(var(--bump) * 100%)); }
-.theme-board .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
-.theme-board .summary { min-height: 3em; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
-.theme-board .summary b { color: var(--ink); font-weight: 500; }
 .morph {
   position: fixed; z-index: 20; background: var(--surface); border: 1px solid var(--line); overflow: hidden; pointer-events: none;
   font-family: var(--display); font-size: 21px; padding: 18px 22px; line-height: 1.25; color: var(--ink);
+}
+
+/* Onboarding fits the window: the board absorbs the spare height. It only scrolls if the window is too short for the controls */
+.theme-board.onboarding { --ob-space: 20px; height: 100dvh; min-height: 0; overflow-y: auto; }
+/* one spacing value: the page padding on all four sides, the gap between stacked blocks, and the gaps inside the top band */
+.theme-board.onboarding .wrap { height: 100%; max-width: none; padding: var(--ob-space); gap: var(--ob-space); }
+/* a mirrored band above the board: equal side columns either side of the card, on the same axis as the board's two buckets */
+.ob-top {
+  display: grid; gap: var(--ob-space); grid-template-columns: minmax(0, 1fr) minmax(0, 520px) minmax(0, 1fr);
+  grid-template-rows: 1fr auto; grid-template-areas: "intro deck stat" "tools deck stat";
+}
+.ob-intro { grid-area: intro; display: flex; flex-direction: column; gap: calc(var(--ob-space) / 2); }
+.theme-board .ob-top .deck { grid-area: deck; align-self: stretch; gap: var(--ob-space); }
+/* the card takes any height the side columns have beyond its own, so the band's top and bottom edges line up across all three columns */
+.theme-board.onboarding .card { flex: 1 1 auto; }
+/* same height as the answer row, so all the buttons sit on one line */
+.ob-tools { grid-area: tools; display: flex; gap: 10px; align-items: center; height: 64px; }
+.ob-stat { grid-area: stat; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; font-variant-numeric: tabular-nums; }
+.ob-stat p { margin: 0; }
+.ob-stat__n { font-family: var(--display); font-weight: 700; font-size: 96px; line-height: 1; letter-spacing: -0.03em; color: var(--bad); }
+.ob-stat__n.is-empty { color: var(--muted); }
+.ob-stat__what { font-family: var(--display); font-weight: 500; font-size: 21px; line-height: 1.25; margin-top: 4px; text-wrap: balance; }
+.ob-stat__counts { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
+.ob-stat__counts b { color: var(--ink); font-weight: 500; }
+/* below this the side columns get too thin: card first, then the figure and the undo controls share a row */
+@media (max-width: 1100px) {
+  .ob-top { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: none; grid-template-areas: "intro intro" "deck deck" "stat tools"; }
+  .ob-tools { height: auto; }
+  .ob-stat { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; justify-items: start; text-align: left; }
+  .ob-stat__n { grid-row: span 2; font-size: 48px; }
+  .ob-stat__what { font-size: 15px; margin-top: 0; }
+  .ob-stat__counts { font-size: 12px; margin-top: 0; }
+}
+/* phone: the board's own counter cards already give the counts */
+@media (max-width: 560px) {
+  .ob-stat__n { grid-row: auto; font-size: 40px; }
+  .ob-stat__what { font-size: 14px; }
+  .ob-stat__counts { display: none; }
+}
+@media (max-height: 800px) {
+  .theme-board.onboarding { --ob-space: 16px; }
+  .theme-board.onboarding .card { height: 140px; padding: 12px 18px; gap: 4px; }
+  .theme-board.onboarding .card .hl { font-size: 18px; }
+  .ob-stat__n { font-size: 72px; }
 }
 
 /* Intro */
@@ -178,61 +222,13 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 /* The Atlas fills the feed's full-screen sheet; its own overlays scroll, the page never does. */
 .home__map { height: 100%; overflow: hidden; }
 
-/* Ring colours: one ordered amber-to-rust ramp (no pure red, so it never reads as an error) for how far outside the bubble (card rail, mini-map path). Blue stays reserved for home. */
+/* Ring colours: one ordered amber-to-rust ramp (no pure red, so it never reads as an error) for how far outside the bubble (the thread and the shape bar). Blue stays reserved for home. */
 .theme-board, .theme-atlas { --ring-1: #a8700a; --ring-2: #c2570c; --ring-3: #8f3f0c; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .theme-board, :root:not([data-theme="light"]) .theme-atlas { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
 }
 :root[data-theme="dark"] .theme-board, :root[data-theme="dark"] .theme-atlas { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
 
-/* Split view: feed ~60% / sticky mini-map ~40%; mini-map hidden on small screens. */
-.home { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); height: 100dvh; overflow: hidden; }
-.home__feed { position: relative; min-width: 0; }
-.home .feed__slide { padding-top: 88px; }
-.home__mini { border-left: 1px solid var(--line); background: var(--surface); padding: 24px; min-height: 0; }
-@media (max-width: 767px) {
-  .home { grid-template-columns: 1fr; }
-  .home__mini { display: none; }
-}
-
-/* Distance slider */
-.dist {
-  position: absolute; z-index: 2; top: 14px; left: 50%; transform: translateX(-50%); width: min(360px, calc(100% - 32px));
-  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 14px; padding: 8px 16px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 6px 20px -12px rgba(0, 0, 0, 0.35);
-}
-.dist__label { grid-row: span 2; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-.dist input { width: 100%; margin: 0; accent-color: var(--accent); cursor: pointer; }
-.dist input:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-.dist__stops { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
-.dist__stops span { cursor: pointer; }
-.dist__stops .on { color: var(--ink); font-weight: 600; }
-
-/* Mini-map */
-.mm { height: 100%; display: flex; flex-direction: column; gap: 14px; }
-.mm__head { display: grid; gap: 2px; }
-.mm__head strong { font-family: var(--display); font-size: 22px; line-height: 1.2; }
-.mm__sub { font-size: 13px; color: var(--muted); }
-.mm__btn {
-  flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; color: inherit; font: inherit;
-}
-.mm__btn:hover { border-color: var(--accent); }
-.mm__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.mm__btn svg { flex: 1; min-height: 0; width: 100%; }
-.mm__hint { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.mm__region { fill: var(--accent); fill-opacity: 0.07; stroke: var(--accent); stroke-opacity: 0.3; stroke-width: 3; stroke-dasharray: 10 10; transition: r 0.4s ease; }
-.mm__ring { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 6 8; }
-.mm__bubble { fill: var(--accent); fill-opacity: 0.1; stroke: var(--accent); stroke-width: 3; }
-.mm__nedge { stroke: var(--muted); stroke-opacity: 0.45; stroke-width: 3; }
-.mm__pedge { stroke-width: 8; stroke-linecap: round; }
-.mm__pedge.mm--r1 { stroke: var(--ring-1); } .mm__pedge.mm--r2 { stroke: var(--ring-2); } .mm__pedge.mm--r3 { stroke: var(--ring-3); }
-.mm__node { stroke: var(--bg); stroke-width: 3; }
-.mm__node--fade { fill: var(--peg); opacity: 0.25; }
-.mm__node--near { fill: var(--muted); }
-.mm__node--bubble, .mm__node--path.mm--r0 { fill: var(--accent); }
-.mm__node--path.mm--r1 { fill: var(--ring-1); } .mm__node--path.mm--r2 { fill: var(--ring-2); } .mm__node--path.mm--r3 { fill: var(--ring-3); }
-.mm__lbl { font: 600 34px var(--body); fill: var(--ink); paint-order: stroke; stroke: var(--bg); stroke-width: 9px; stroke-linejoin: round; }
-.mm__pulse { fill: none; stroke: var(--accent); stroke-width: 5; transform-box: fill-box; transform-origin: center; animation: mm-pulse 1s ease-out infinite; }
-@keyframes mm-pulse { from { transform: scale(0.8); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .mm__pulse { animation: none; } .mm__region { transition: none; } }
+/* Home: the edition fills the viewport; its own columns scroll, the page never does. */
+.home { height: 100dvh; overflow: hidden; }
+@media (max-width: 900px) { .home { height: auto; overflow: visible; } }

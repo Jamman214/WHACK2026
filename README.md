@@ -1,7 +1,7 @@
 # WHACK 2026 — "anti-Instagram" demo
 
-Onboarding (split Galton board) → **news feed** (primary) with the Topic Atlas (radial bubble map) as a
-secondary sheet. Desktop web for the demo; the feed is one-card-per-screen snap scroll so it can become a mobile PWA.
+Onboarding (split Galton board) → **today's edition** (primary: a date + stories grouped by distance on the left, the thread and the
+story on the right) with the Topic Atlas (radial bubble map) as a secondary sheet. Desktop web for the demo.
 Brief and reference prototypes: [`whack-demo/`](whack-demo/PROMPT.md).
 
 ```sh
@@ -15,7 +15,7 @@ npm run build
 ## Data
 Everything comes from the backend (`src/data/api.ts`): `GET /map` (groups → categories, topics, links) is loaded
 before the app renders; onboarding calls `POST /onboarding/next` on every swipe ("In my feed" = backend `right`);
-"Add to my bubble" sends the swipes plus map adds/removes to `POST /bubble`; the feed uses `POST /feed`.
+Reading a story (or "Remove from bubble" on the map) sends the swipes plus those adds/removes to `POST /bubble`; the feed uses `POST /feed`.
 Link weights (cosine) are stretched onto 0.2–0.95 so the map's strength stops keep their meaning; group colours are
 generated. Set `VITE_API_URL` to call a backend somewhere other than the dev proxy.
 
@@ -29,7 +29,7 @@ generated. Set `VITE_API_URL` to call a backend somewhere other than the dev pro
 3. **◎ Map** → the Atlas fills the screen as a solar system. **You** (your known topics) are the sun; the 14 subject areas are planets on orbit rings,
    one ring per step away from what you know. The panel opens on **Where to next**: the three planets one step out, each with the topic that links it to you and why.
    Click a card (or a planet) → the planet view: what it covers, **how this connects to you** (the route home, step by step), its topics with
-   distance badges (*In your bubble / 1 step / 2 steps / Out of reach*) and the latest stories. Pick a topic → **Add to my bubble**.
+   distance badges (*In your bubble / 1 step / 2 steps / Out of reach*) and the latest stories. Pick a topic and read one of its stories → it joins your bubble (Undo in the toast).
 4. **⌂ Home** (or the **Map** crumb) returns to the whole map; **← Back to your feed** (or `Esc`) goes back to the feed, which is re-ranked around the bigger bubble.
    One bridge strength ("Related") is used everywhere; there are no map settings to fiddle with.
 
@@ -48,10 +48,10 @@ src/data/headlines.ts     onboarding card type, demo-feed rule, bubble fallback
 src/lib/layout.ts         pure: BFS rings, parents, placeArc → target positions
 src/lib/galton.ts         pure: scripted split-board paths, bucket heaps, ball timing
 src/render/               Canvas 2D drawing for the board
-src/screens/              Intro, Onboarding, Home (feed + map sheet), Atlas (overlay shell + navigation state) + AtlasScene (three.js) / AtlasSvg (fallback)
+src/screens/              Intro, Onboarding, Home (edition + map sheet), Atlas (overlay shell + navigation state) + AtlasScene (three.js) / AtlasSvg (fallback)
 src/screens/atlas/        Atlas panels: Overview (where to next), HomePanel, PlanetPanel (route, topics, news), Search, News
 src/screens/atlas.css     Atlas overlay styles (breadcrumb, panels, topic accordion, news cards, legend)
-src/feed/                 news feed module: Feed, NewsCard, rank, providers (backend / test mock)
+src/feed/                 today's edition module: Edition, Thread, Article, rank (mix + daily cap), providers (backend / test mock)
 ```
 
 ## Moving to Three.js

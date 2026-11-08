@@ -102,10 +102,24 @@ def make_article(
     }
 
 
+# Teaser trailers feeds append to summaries: Guardian "Continue reading...", WordPress
+# 'Continue reading "Title"' / "The post X appeared first on Y.", and "[...]" / "Read more".
+TRAILER = re.compile(
+    r"(?:\s*(?:"
+    r"continue reading(?:\s*[\"\u201c][^\"\u201d]*[\"\u201d])?\s*(?:\.{3}|\u2026)?"
+    r"|read (?:more|the full (?:story|article))\s*(?:\.{3}|\u2026|>>|\u00bb)?"
+    r"|the post .{0,300}? (?:appeared first|first appeared) on .{0,100}?\s*\.?"
+    r"|\[(?:\.{3}|\u2026)\]"
+    r")\s*)+$",
+    re.IGNORECASE,
+)
+
+
 def strip_html(text):
     # RSS summaries often embed <p>/<img> tags; embeddings want plain text
     text = re.sub(r"<[^>]+>", " ", str(text or ""))
-    return re.sub(r"\s+", " ", html.unescape(text)).strip()
+    text = re.sub(r"\s+", " ", html.unescape(text)).strip()
+    return TRAILER.sub("", text).strip()
 
 
 # ---------------------------------------

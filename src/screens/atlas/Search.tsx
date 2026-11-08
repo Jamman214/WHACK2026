@@ -102,7 +102,9 @@ export default function Search({ lay, open, setOpen, inputRef, onPick, onAdd }: 
       onFocus={() => setFocused(true)}
       onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); setFocused(false); } }}>
       <label className="sr-only" htmlFor={uid + "-in"}>Find a topic</label>
-      <span className="srch__icon" aria-hidden="true">⌕</span>
+      <svg className="srch__icon" viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+        <circle cx="8.5" cy="8.5" r="5.5" /><path d="m12.7 12.7 4.3 4.3" />
+      </svg>
       <input
         id={uid + "-in"} ref={inputRef} className="srch__input" type="text" autoComplete="off" spellCheck={false}
         placeholder="Find a topic…" value={q}
@@ -113,6 +115,11 @@ export default function Search({ lay, open, setOpen, inputRef, onPick, onAdd }: 
         onKeyDown={onKeyDown}
       />
       {!focused && !q && <kbd className="srch__key" aria-hidden="true">/</kbd>}
+      {q && (
+        <button type="button" className="srch__x" aria-label="Clear search" onMouseDown={(e) => e.preventDefault()} onClick={clear}>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="m3.5 3.5 9 9m0-9-9 9" /></svg>
+        </button>
+      )}
       <p id={uid + "-help"} className="sr-only">
         Type to filter. Arrow keys move, Enter opens the topic{onAdd ? ", Shift+Enter adds it to your bubble; it says so if it is already there" : ""}. Escape closes.
       </p>

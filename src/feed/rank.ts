@@ -3,12 +3,35 @@ import type { FeedCardModel, FeedItem } from './types';
 /** Target share of bridge cards at 1, 2 and 3+ hops. */
 export type Mix = readonly [number, number, number];
 
-/** The distance slider's stops. `ring` is how far out the mini-map highlights. */
+/** The distance slider's stops: how the bridge stories are weighted by hop distance. */
 export const DISTANCES = [
-  { label: 'Nearby', mix: [1, 0, 0] as Mix, ring: 1 },
-  { label: 'Wider', mix: [0.6, 0.3, 0.1] as Mix, ring: 2 },
-  { label: 'Far', mix: [0.3, 0.4, 0.3] as Mix, ring: Infinity },
+  { label: 'Nearby', mix: [1, 0, 0] as Mix },
+  { label: 'Wider', mix: [0.6, 0.3, 0.1] as Mix },
+  { label: 'Far', mix: [0.3, 0.4, 0.3] as Mix },
 ] as const;
+
+/** How many stories make up one day's edition. */
+export const EDITION_SIZE = 15;
+
+/** Distance group of a card: 0 = in the bubble, 1–3 = hops out (3 means "3 or more"). */
+export const ringOf = (c: FeedCardModel) => (c.placement.kind === 'bridge' ? Math.min(c.placement.hops, 3) : 0);
+
+/**
+ * Today's edition: the first `n` of the ranked feed, one story per topic where possible (so one busy topic can't
+ * fill the day), with the ranked order kept. Because the ranking is weighted by the distance slider, the slider
+ * changes which stories make the cut, not just their order.
+ */
+export function pickEdition(cards: FeedCardModel[], n = EDITION_SIZE): FeedCardModel[] {
+  const seen = new Set<string>();
+  const firsts: FeedCardModel[] = [];
+  const rest: FeedCardModel[] = [];
+  for (const c of cards) {
+    (seen.has(c.topicId) ? rest : firsts).push(c);
+    seen.add(c.topicId);
+  }
+  const chosen = new Set([...firsts, ...rest].slice(0, n).map((c) => c.id));
+  return cards.filter((c) => chosen.has(c.id));
+}
 
 /**
  * Tag each item inside/bridge and order the feed so it's mostly outside the bubble,

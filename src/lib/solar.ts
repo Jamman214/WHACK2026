@@ -168,7 +168,7 @@ export const planetRadius = (topics: number, orbit: number) => {
 };
 export const homeRadius = (known: number) => Math.min(2.5, 1.5 + 0.12 * Math.sqrt(Math.max(1, known)));
 
-const RING_GAP = 2.1; // clear space between two orbits' planets
+const RING_GAP = 3.4; // clear space between two orbits' planets
 const SIDE_PAD = 0.55; // minimum clear space between neighbours on one orbit
 const homeAngle = (id: CategoryId) => -Math.PI / 2 + (TAU * (CAT_INDEX[id] + 0.5)) / CATEGORIES.length;
 const angDiff = (a: number, b: number) => Math.abs(((((a - b) % TAU) + 3 * Math.PI) % TAU) - Math.PI);

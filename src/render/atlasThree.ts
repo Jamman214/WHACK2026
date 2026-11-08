@@ -34,6 +34,12 @@ export interface Insets { top: number; right: number; bottom: number; left: numb
 const FOV = 38;
 const U = 50; // scene units per solar unit
 const CAM_MS = 1000;
+// planet-view intro: the planet turns clockwise (seen from above) and the moons sweep anticlockwise as the camera
+// flies in; both coast to rest a little after it lands, and the topic names fade in as the moons slow
+const INTRO_MOON_MS = CAM_MS + 550;
+const INTRO_PLANET_MS = INTRO_MOON_MS; // same coast-to-rest as the moons, so both settle together
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const easeOutCubic = (k: number) => 1 - Math.pow(1 - k, 3);
 const SEGS = 28; // segments per route
 const LABEL_PAD = 4;
 const FLIGHT_MS = 900;
@@ -169,6 +175,11 @@ export class AtlasThree {
   private view: SceneView = { planet: null, sel: null };
   private mode: Mode = "overview";
   private focusIdx = -1; // planet view / home view target
+  /** Planet-view intro: extra yaw on the planet, extra angle on its moons, and the topic-name fade (1 = done). */
+  private intro = { idx: -1, t0: 0, yaw: 0, moonAng: 0, labels: 1 };
+  private readonly moonAxis = sphericalDir(PLANET_POLAR, 0); // normal of the planet-view moon ring (faces the camera)
+  private readonly _yawQ = new THREE.Quaternion();
+  private readonly _orbitQ = new THREE.Quaternion();
   private pairMax = new Map<string, number>();
   private colors = new Map<string, THREE.Color>();
   private dark = false;
@@ -382,6 +393,7 @@ export class AtlasThree {
 
     host.addEventListener("wheel", this.onWheel, { passive: true });
     host.addEventListener("pointerdown", this.onDown);
+    host.addEventListener("keydown", this.onKey);
     host.addEventListener("pointermove", this.onMove);
     host.addEventListener("pointerup", this.onUp);
     host.addEventListener("pointerleave", this.onLeave);
@@ -448,6 +460,7 @@ export class AtlasThree {
     this.focusIdx = v.planet && v.planet !== "home" ? CAT_INDEX[v.planet] : -1;
     const changed = mode !== prevMode || v.planet !== prev.planet;
     if (changed) { this.interacted = false; this.applySpinFor(v.planet); }
+    if (changed || !this.viewInit) this.startIntro(this.viewInit && mode === "planet" ? this.focusIdx : -1);
     if (!this.viewInit) { this.viewInit = true; this.interacted = false; this.snapCamera(this.poseForMode()); if (v.sel) this.snapSpin(v.sel); }
     else if (changed) this.flyTo(this.poseForMode());
     if (this.viewInit && (v.sel !== prev.sel || changed)) this.turnTo(v.sel);
@@ -484,6 +497,7 @@ export class AtlasThree {
     const h = this.host;
     h.removeEventListener("wheel", this.onWheel);
     h.removeEventListener("pointerdown", this.onDown);
+    h.removeEventListener("keydown", this.onKey);
     h.removeEventListener("pointermove", this.onMove);
     h.removeEventListener("pointerup", this.onUp);
     h.removeEventListener("pointerleave", this.onLeave);
@@ -867,6 +881,36 @@ export class AtlasThree {
     return this.flyers.length > 0 || !!this.pending;
   }
 
+  /** Start the planet-view intro for planet `idx` (-1, or reduced motion: no intro). */
+  private startIntro(idx: number) {
+    const on = idx >= 0 && !reduceMotion();
+    this.intro = { idx: on ? idx : -1, t0: performance.now(), yaw: 0, moonAng: 0, labels: on ? 0 : 1 };
+    if (on) this.stepIntro(this.intro.t0);
+  }
+
+  /** Any input during the intro jumps it to its end, so nobody waits on it. */
+  private finishIntro() {
+    if (this.intro.idx < 0) return;
+    this.intro.t0 = -Infinity;
+    this.requestRender();
+  }
+
+  private stepIntro(now: number): boolean {
+    const it = this.intro;
+    if (it.idx < 0) return false;
+    const kP = clamp((now - it.t0) / INTRO_PLANET_MS, 0, 1), kM = clamp((now - it.t0) / INTRO_MOON_MS, 0, 1);
+    // whole turns, so the start and end orientations match: +2pi -> 0 about +y is clockwise from above
+    it.yaw = Math.PI * 2 * (1 - easeOutCubic(kP)); // ease-out: spins up on the click, decelerates smoothly to rest
+    // -2pi -> 0 about the ring normal (towards the camera) is anticlockwise on screen; ease-out = coasting to rest
+    it.moonAng = -Math.PI * 2 * (1 - easeOutCubic(kM));
+    // labels follow the moons' speed (relative speed of an ease-out cubic is (1 - k)^2): hidden until the moons are
+    // below 40% speed, then firming up as they coast to rest
+    const speed = (1 - kM) * (1 - kM);
+    it.labels = Math.pow(clamp(1 - speed / 0.4, 0, 1), 2);
+    if (kM >= 1) { this.intro = { idx: -1, t0: 0, yaw: 0, moonAng: 0, labels: 1 }; }
+    return kM < 1;
+  }
+
   private turnTo(_id: string | null) { /* moons are static: selecting one only highlights it */ }
 
   private snapSpin(_id: string) { /* see turnTo */ }
@@ -1048,7 +1092,8 @@ export class AtlasThree {
     this.applyLimits(this.mode);
   };
 
-  private readonly onWheel = () => this.userMoved();
+  private readonly onWheel = () => { this.finishIntro(); this.userMoved(); };
+  private readonly onKey = () => this.finishIntro();
 
   private userMoved() {
     this.cam = null;
@@ -1071,6 +1116,7 @@ export class AtlasThree {
     if (this.stepTween(now)) again = true;
     if (this.stepInsets()) again = true;
     if (this.stepSpin(now)) again = true;
+    if (this.stepIntro(now)) again = true;
     if (this.stepFx(dt)) again = true;
     if (this.stepFlyers(now)) again = true;
     if (this.stepCamera(now)) again = true;
@@ -1105,11 +1151,16 @@ export class AtlasThree {
     for (const pl of this.planets) {
       const r = pl.p.r * U;
       this.planetPos(pl.p, pl.center);
+      const intro = pl.idx === this.intro.idx;
       pl.body.position.copy(pl.center); pl.body.scale.setScalar(r); pl.body.quaternion.copy(pl.spin);
+      if (intro) pl.body.quaternion.premultiply(this._yawQ.setFromAxisAngle(Y_AXIS, this.intro.yaw));
+      if (intro) this._orbitQ.setFromAxisAngle(this.moonAxis, this.intro.moonAng);
       pl.atmo.position.copy(pl.center); pl.atmo.scale.setScalar(r * 1.13);
       pl.prog.position.copy(pl.center); pl.prog.scale.setScalar(r * 1.38); pl.prog.quaternion.copy(this.camera.quaternion);
       for (const t of pl.topics) {
-        t.pos.copy(t.moon).multiplyScalar(r).add(pl.center);
+        t.pos.copy(t.moon);
+        if (intro) t.pos.applyQuaternion(this._orbitQ);
+        t.pos.multiplyScalar(r).add(pl.center);
         pos.setXYZ(t.i, t.pos.x, t.pos.y, t.pos.z);
         t.hpos.copy(t.hmoon).multiplyScalar(hr);
         pos.setXYZ(N_TOPICS + t.i, t.hpos.x, t.hpos.y, t.hpos.z);
@@ -1459,7 +1510,7 @@ export class AtlasThree {
       pl.rpx = (pl.p.r * U * this.pxScale) / Math.max(1, Math.sqrt(Math.max(1, pl.dist * pl.dist - (pl.p.r * U) ** 2)));
       pl.shown = z < 1 && z > -1;
     }
-    const discBoxes: Box[] = this.planets.filter((pl) => pl.shown && mode !== "planet").map((pl) => ({ x0: pl.px - pl.rpx, y0: pl.py - pl.rpx, x1: pl.px + pl.rpx, y1: pl.py + pl.rpx }));
+    const discBoxes: Box[] = this.planets.filter((pl) => pl.shown && mode === "overview").map((pl) => ({ x0: pl.px - pl.rpx, y0: pl.py - pl.rpx, x1: pl.px + pl.rpx, y1: pl.py + pl.rpx }));
     if (mode === "overview") boxes.push({ x0: hp.x - hrpx, y0: hp.y - hrpx, x1: hp.x + hrpx, y1: hp.y + hrpx });
     const hitDisc = (x0: number, y0: number, x1: number, y1: number, skip: Box | null) => {
       for (const b of discBoxes) if (b !== skip && x0 < b.x1 && x1 > b.x0 && y0 < b.y1 && y1 > b.y0) return true;
@@ -1493,7 +1544,7 @@ export class AtlasThree {
       const w = pl.w, h = pl.h;
       let placed: { x0: number; y0: number } | null = null;
       const forced = pl.el === active || pl.idx === this.hoverPlanet;
-      if (mode !== "planet" && pl.shown) {
+      if (mode === "overview" && pl.shown) {
         const gap = 5;
         // outward from the sun first (labels sit outside the system, not between planets), then below / above / sides
         let ux = pl.px - hp.x, uy = pl.py - hp.y;
@@ -1519,7 +1570,7 @@ export class AtlasThree {
         }
         if (!placed && forced) placed = { x0: clamp(Math.round(pl.px - w / 2), vr.x0, Math.max(vr.x0, vr.x1 - w)), y0: clamp(Math.round(pl.py + pl.rpx + 5), vr.y0, Math.max(vr.y0, vr.y1 - h)) };
       }
-      const modeOff = mode === "planet";
+      const modeOff = mode !== "overview";
       pl.el.hidden = modeOff && pl.el !== active;
       const on = !!placed && !modeOff;
       if (placed && on) boxes.push({ x0: placed.x0, y0: placed.y0, x1: placed.x0 + w, y1: placed.y0 + h });
@@ -1543,6 +1594,7 @@ export class AtlasThree {
       const z = this.project(pt, p);
       t.px = p.x; t.py = p.y;
       const forced = t.el === active || t.topic.id === sel;
+      if (inPlanet && t.pl.idx === this.intro.idx && this.intro.labels < 0.02) { this.styleLabel(t.el, t, false, 0, 0, 0, 0); continue; }
       if (z < 1 && (vis > 0.35 || forced)) {
         const c = inPlanet ? t.pl.center : this._c.set(0, 0, 0);
         this.project(c, this._p);
@@ -1566,7 +1618,8 @@ export class AtlasThree {
       if (!placed && c.pr <= -1) placed = { x0: clamp(Math.round(c.x + off), vr.x0, Math.max(vr.x0, vr.x1 - w)), y0: clamp(Math.round(c.y - h / 2), vr.y0, Math.max(vr.y0, vr.y1 - h)) };
       if (placed) {
         boxes.push({ x0: placed.x0, y0: placed.y0, x1: placed.x0 + w, y1: placed.y0 + h });
-        this.styleLabel(t.el, t, true, placed.x0, placed.y0, 0.75 + 0.25 * c.vis, c.pr <= 0 ? 700 : 600 - Math.round(c.pr * 20));
+        const fade = t.pl.idx === this.intro.idx && mode === "planet" ? this.intro.labels : 1;
+        this.styleLabel(t.el, t, true, placed.x0, placed.y0, (0.75 + 0.25 * c.vis) * fade, c.pr <= 0 ? 700 : 600 - Math.round(c.pr * 20));
       } else this.styleLabel(t.el, t, false, 0, 0, 0, 0);
     }
   }
@@ -1641,6 +1694,7 @@ export class AtlasThree {
   private readonly onDown = (e: PointerEvent) => {
     this.down = { x: e.clientX, y: e.clientY };
     this.dragged = false;
+    this.finishIntro();
   };
 
   private readonly onMove = (e: PointerEvent) => {

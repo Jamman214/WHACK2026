@@ -89,9 +89,10 @@ export function createHeap(x0: number, w: number, yBot: number) {
   const cols = Math.floor((w - SP / 2) / SP);
   const slack = w - (cols * SP + SP / 2);
   const rows: boolean[][] = [];
+  const placed: { row: number; col: number }[] = [];
   return {
     capacity: cols * 2,
-    reset() { rows.length = 0; },
+    reset() { rows.length = 0; placed.length = 0; },
     place(ex: number) {
       let row = 0;
       while (rows[row] && rows[row].every(Boolean)) row++;
@@ -101,7 +102,13 @@ export function createHeap(x0: number, w: number, yBot: number) {
       for (let c = 0; c < cols; c++)
         if (!filled[c] && (best < 0 || Math.abs(off + c * SP - ex) < Math.abs(off + best * SP - ex))) best = c;
       filled[best] = true;
+      placed.push({ row, col: best });
       return { x: off + best * SP, y: yBot - FLOOR - BALL_RADIUS - row * ROW_H, row };
+    },
+    /** Free the most recently placed slot. */
+    unplace() {
+      const last = placed.pop();
+      if (last) rows[last.row][last.col] = false;
     },
   };
 }
@@ -209,6 +216,12 @@ export function createSplitBoard() {
       heaps.seen.reset();
       heaps.unseen.reset();
       counts.seen = counts.unseen = 0;
+    },
+    /** Take back the last ball dispatched to this side, freeing its slot in the bucket. */
+    undo(isSeen: boolean) {
+      const side = isSeen ? "seen" : "unseen";
+      heaps[side].unplace();
+      counts[side]--;
     },
     /** Full path for one ball, ending at its resting spot in the chosen bucket. */
     path(isSeen: boolean, rng: Rng = Math.random): PathPoint[] {

@@ -4,7 +4,7 @@ import { DEMO_BUBBLE, TOPIC_BY_ID } from "../data/taxonomy";
 import { layout, nearbyTopics, reachablePath } from "../lib/layout";
 import { MOCK_ITEMS } from "./mock";
 import { mockProvider } from "./providers";
-import { DISTANCES, rankFeed, type Mix } from "./rank";
+import { DISTANCES, EDITION_SIZE, pickEdition, rankFeed, ringOf, type Mix } from "./rank";
 import { edgeReason } from "../data/reasons";
 import { LINKS } from "../data/taxonomy";
 
@@ -34,6 +34,23 @@ describe("distance mix", () => {
     const near = await ids(DISTANCES[0].mix);
     expect(await ids(DISTANCES[1].mix)).toEqual(near);
     expect(await ids(DISTANCES[2].mix)).toEqual(near);
+  });
+});
+
+describe("today's edition", () => {
+  it("caps the day, prefers one story per topic, and keeps the ranked order", async () => {
+    const all = await feedFor(DEMO_BUBBLE, DISTANCES[1].mix);
+    const ed = pickEdition(all, 6);
+    expect(ed).toHaveLength(6);
+    expect(new Set(ed.map((c) => c.topicId)).size).toBe(6);
+    const order = ed.map((c) => all.indexOf(c));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(pickEdition(all).length).toBeLessThanOrEqual(EDITION_SIZE);
+  });
+
+  it("the slider changes which stories make the cut, not just their order", async () => {
+    const far = (m: Mix) => feedFor(DEMO_BUBBLE, m).then((c) => pickEdition(c).filter((x) => ringOf(x) >= 2).length);
+    expect(await far(DISTANCES[2].mix)).toBeGreaterThan(await far(DISTANCES[0].mix));
   });
 });
 

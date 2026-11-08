@@ -12,7 +12,7 @@ People who want to know more than they do now. Most of their news reaches them t
 The current build is a demo for WHACK 2026, but design decisions are judged against this reader, not against the demo audience.
 
 ## Product Purpose
-It shows people stories from outside their filter bubble and gives them a recommended way to explore past it. Onboarding works out what's already in the reader's feed. The news feed then mixes stories they already know with "bridge" stories one or more steps out, and the Topic Atlas shows how far every subject is from what they know. Readers can add topics to their bubble, and the feed re-ranks around the bigger bubble.
+It shows people stories from outside their filter bubble and gives them a recommended way to explore past it. Onboarding works out what's already in the reader's feed. The news feed then mixes stories they already know with "bridge" stories one or more steps out, and the Topic Atlas shows how far every subject is from what they know. Reading a story from outside the bubble brings its topic in (with Undo, and a Remove on the map), and the feed re-ranks around the bigger bubble.
 
 It works when a reader can see at a glance where their knowledge stops, how far new knowledge is, and what step to take next.
 
@@ -22,7 +22,7 @@ The idea started out covering social events as well as news. It narrowed to news
 Engagement feeds keep you inside what you already like. This product shows where your knowledge stops and how far away new topics are, and it gives an explained route ("Because you follow X → Y") so you can grow your bubble one step at a time.
 
 ## Operating Context
-- Flow: Intro → onboarding Galton board (sort 18 headlines as "in my feed / not in my feed", which defines the bubble) → news feed (the main screen, one card per screen, snap scroll) → Topic Atlas (a full-screen solar-system map over the feed: "You" at the centre, 14 subject planets on rings by bridge distance, and topics as moons).
+- Flow: Intro → onboarding Galton board (sort 18 headlines as "in my feed / not in my feed", which defines the bubble) → today's edition (the main screen: a date and a capped, distance-grouped list on the left; on the right the thread from what you follow to the story, then the story itself) → Topic Atlas (a full-screen solar-system map over the feed: "You" at the centre, 14 subject planets on rings by bridge distance, and topics as moons).
 - Three navigation levels, always shown as a breadcrumb: Map › Planet › Topic.
 - Core concepts to keep intact: *home* (what you know), *distance* (steps out to new knowledge), *building out your bubble* (step by step).
 

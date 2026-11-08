@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORIES, DEMO_BUBBLE, LINKS, TOPICS } from "../data/taxonomy";
-import { bubbleFrom, demoSeen } from "../data/headlines";
-import { BALL_RADIUS, BOARD_W, SPLIT, ballPosition, bucketRect, createSplitBoard, landTime, pathDuration, pathEvents, scriptedPath } from "./galton";
+import { bubbleFrom } from "../data/headlines";
+import { BALL_RADIUS, BOARD_W, SPLIT, ballPosition, bucketRect, createSplitBoard, landTime, pathDuration, pathEvents, scriptedPath, type PathPoint } from "./galton";
 import { CX, CY, buildModel, layout, pathTo } from "./layout";
+import { bubbleAfterRead } from "./reading";
 
 // small seeded RNG so failures are reproducible
 const mulberry = (seed: number) => () => {
@@ -122,6 +123,17 @@ describe("galton split board", () => {
     expect(run()).toEqual(run());
   });
 
+  it("undo frees the bucket slot, so the next ball lands where the undone one did", () => {
+    const board = createSplitBoard();
+    board.path(true, mulberry(1));
+    const last = (b: PathPoint[]) => b[b.length - 1];
+    const undone = last(board.path(true, mulberry(2)));
+    board.undo(true);
+    expect(board.counts.seen).toBe(1);
+    const again = last(board.path(true, mulberry(2)));
+    expect([again.x, again.y]).toEqual([undone.x, undone.y]);
+  });
+
   it("pegs get hit, and the ball lands then rebounds at least twice with decaying height", () => {
     const pts = createSplitBoard().path(true, mulberry(3));
     const ev = pathEvents(pts);
@@ -179,15 +191,20 @@ describe("radial layout", () => {
   });
 });
 
+describe("reading grows the bubble", () => {
+  it("adds the story's topic once, and leaves a topic already inside alone", () => {
+    expect(bubbleAfterRead(["ai"], "chips")).toEqual(["ai", "chips"]);
+    expect(bubbleAfterRead(["ai", "chips"], "chips")).toBeNull();
+  });
+});
+
 describe("onboarding bubble", () => {
   it("keeps the backend's known topics", () => {
     expect(bubbleFrom(["ai", "chips"], ["ai", "rates", "water"])).toEqual(["ai", "chips"]);
   });
 
-  it("falls back to the demo rule's picks with fewer than 2 known topics", () => {
-    const shown = ["ai", "rates", "water", "sport", "cyber"];
-    expect(shown.filter((_, i) => demoSeen(i))).toEqual(["ai", "sport"]);
-    expect(bubbleFrom(["ai"], shown)).toEqual(["ai", "sport"]);
+  it("falls back to the swiped-in topics with fewer than 2 known topics", () => {
+    expect(bubbleFrom(["ai"], ["sport"])).toEqual(["ai", "sport"]);
     expect(bubbleFrom([], [])).toEqual([]);
   });
 });

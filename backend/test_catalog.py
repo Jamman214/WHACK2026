@@ -40,7 +40,10 @@ assert [a["id"] for a in f] == ["a3", "a2"] and "centrality" not in f[0], f  # r
 assert c.post("/feed", json={"topics": ["t-1"], "perTopic": 0}).status_code == 422
 
 b = c.post("/bubble", json={"history": [{"articleId": "a2", "swipe": "right"}]}).json()
-assert b["knownTopics"] == ["t-1", "t-2"], b  # untested t-2 inferred from the group
+assert b["knownTopics"] == ["t-1"] and b["unknownTopics"] == ["t-2"], b  # untested t-2 stays outside the bubble
+assert b["topicScores"]["t-2"] == 0.14, b  # ...but its w=0.8 link gives it a small spread
+b = c.post("/bubble", json={"history": [{"articleId": "a2", "swipe": "right"}, {"articleId": "a1", "swipe": "left"}]}).json()
+assert b["topicScores"] == {"t-1": 0.5}, b  # a right and a left on the same topic cancel out for neighbours
 b = c.post("/bubble", json={"history": [{"articleId": "a2", "swipe": "right"}],
                             "topics": {"t-2": False, "nope": True}}).json()
 assert b["knownTopics"] == ["t-1"] and b["unknownTopics"] == ["t-2"] and b["groupScores"] == {"g-1": 0.5}, b

@@ -1,13 +1,13 @@
 """Two-way onboarding: the frontend sends the swipe history, the backend returns the next card.
 
 Stateless: everything is worked out from the history on each call, so the server stores nothing
-about users. The flow:
-  1. Show the most typical article of each group (largest groups first).
-  2. If the user swipes right on a group card ("I know this area"), drill in: show the most typical
-     article of each of that group's main topics, to find where their bubble ends.
-  3. If they swipe left, move straight on to the next group.
-  4. Stop after MAX_CARDS swipes, or when there's nothing left to show.
-Drilling in never uses up cards that unseen groups still need, so every group gets probed.
+about users. The flow (MAX_CARDS cards):
+  1. Probe: the most typical article of the largest groups, skipping a group whose main topic is
+     linked to an already-probed group's main topic (near-duplicates waste a card).
+  2. Dive: in groups the user swiped right on (plus topics the spread already touched), show the
+     topic the bubble is least sure about, i.e. the edge of what they know.
+  3. Explore: card EXPLORE_AT is always the next unprobed group, to catch an interest the probe missed.
+With no right swipes there is nothing to dive into, so it keeps probing.
 """
 from typing import Literal, Optional
 
@@ -20,48 +20,55 @@ from store import Store, get_store
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 MAX_CARDS = 15
-FOLLOW_UPS_PER_GROUP = 3
+PROBE_CARDS = 6
+EXPLORE_AT = 10  # 0-based card index of the one exploring card
+NEAR_PENALTY = 0.2  # per card already shown in the same group or a linked topic, so the dive spreads out
 
 
-def group_plan(store: Store) -> list[tuple[StoredArticle, list[StoredArticle]]]:
-    """For each group (largest first): its representative card and its follow-up topic cards."""
-    plan = []
-    for gid in sorted(store.groups, key=lambda g: (-len(store.by_group[g]), g)):
-        if not store.by_group[gid]:
-            continue
-        rep = store.by_group[gid][0]
-        # Main topics of the group, skipping the rep's own topic (the rep swipe already covers it).
-        topics = [t for t in store.topics_in(gid) if t.id != rep.topicId and store.by_topic[t.id]]
-        topics.sort(key=lambda t: (-len(store.by_topic[t.id]), t.id))
-        follow_ups = [store.by_topic[t.id][0] for t in topics[:FOLLOW_UPS_PER_GROUP]]
-        plan.append((rep, follow_ups))
-    return plan
+def probe_order(store: Store) -> list[StoredArticle]:
+    """One card per group, largest groups first: the best article of the group's largest topic that isn't
+    linked to a topic already probed. Groups with no such topic (near-duplicates) go to the end.
+    (Centrality is scaled per topic, so the group's top article alone would be an arbitrary topic.)"""
+    linked = {(l.a, l.b) for l in store.links} | {(l.b, l.a) for l in store.links}
+    first, dupes = [], []
+    for g in sorted(store.groups, key=lambda g: (-len(store.by_group[g]), g)):
+        topics = sorted((t.id for t in store.topics_in(g) if store.by_topic[t.id]),
+                        key=lambda t: (-len(store.by_topic[t]), t))
+        fresh = [t for t in topics if not any((t, r.topicId) in linked for r in first)]
+        if fresh:
+            first.append(store.by_topic[fresh[0]][0])
+        elif topics:
+            dupes.append(store.by_topic[topics[0]][0])
+    return first + dupes
 
 
 def pick_next(
-    swipes: dict[str, str], store: Store
+    swipes: dict[str, str], store: Store, scores: dict[str, float]
 ) -> tuple[Optional[StoredArticle], Optional[Literal["group", "topic"]]]:
-    remaining = MAX_CARDS - len(swipes)
-    if remaining <= 0:
+    if len(swipes) >= MAX_CARDS:
         return None, None
-    plan = group_plan(store)
-    unseen_groups = sum(1 for rep, _ in plan if rep.id not in swipes)
+    probe = next((r for r in probe_order(store) if r.id not in swipes), None)
+    if probe and (len(swipes) < PROBE_CARDS or len(swipes) == EXPLORE_AT):
+        return probe, "group"
 
-    # Drill into groups the user said they know, in the order they swiped those group cards,
-    # but only while there are enough cards left for every unseen group to get its group card.
-    if remaining > unseen_groups:
-        follow_ups_by_rep = {rep.id: follow_ups for rep, follow_ups in plan}
-        for article_id, direction in swipes.items():  # history order
-            if direction == "right" and article_id in follow_ups_by_rep:
-                for f in follow_ups_by_rep[article_id]:
-                    if f.id not in swipes:
-                        return f, "topic"
+    swiped_topics = {store.articles[a].topicId for a in swipes}
+    known_groups = {store.articles[a].groupId for a, d in swipes.items() if d == "right"}
+    linked = {(l.a, l.b) for l in store.links} | {(l.b, l.a) for l in store.links}
+    shown = [store.articles[a] for a in swipes]
 
-    # Otherwise probe the next unseen group.
-    for rep, _ in plan:
-        if rep.id not in swipes:
-            return rep, "group"
-    return None, None
+    def edge(t: str) -> float:
+        s = scores.get(t, 0.0)
+        g = store.topics[t].groupId
+        near = sum(c.groupId == g or (t, c.topicId) in linked for c in shown)
+        return 1 - abs(2 * s - 1) - NEAR_PENALTY * near  # 1 at s=0.5, 0 when settled
+
+    candidates = [t for t in store.topics
+                  if t not in swiped_topics and store.by_topic[t]
+                  and (store.topics[t].groupId in known_groups or t in scores)]
+    if known_groups and candidates:
+        best = max(candidates, key=lambda t: (edge(t), len(store.by_topic[t]), t))
+        return store.by_topic[best][0], "topic"
+    return probe, "group" if probe else None
 
 
 @router.post("/next", response_model=OnboardingStep)
@@ -69,12 +76,13 @@ def onboarding_next(req: OnboardingRequest):
     """Send every swipe so far (empty list to start). Returns the next card, or done=true."""
     store = get_store()
     swipes = latest_swipes(req.history, store)
-    card, reason = pick_next(swipes, store)
+    bubble = compute_bubble(req.history, store)
+    card, reason = pick_next(swipes, store, bubble.topicScores)
     return OnboardingStep(
         done=card is None,
         card=Card(**card.model_dump(exclude={"centrality"})) if card else None,
         reason=reason,
         progress=Progress(shown=len(swipes), max=MAX_CARDS),
-        bubble=compute_bubble(req.history, store),
+        bubble=bubble,
         mapVersion=store.version,
     )
