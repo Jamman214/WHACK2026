@@ -49,6 +49,15 @@ function Sec({ title, children, className }: { title: string; children: ReactNod
   );
 }
 
+/** The always-visible cue that a row is clickable: right goes somewhere, down expands in place. */
+function Chevron({ down }: { down?: boolean }) {
+  return (
+    <svg className="chev" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={down ? "M3.5 6 8 10.5 12.5 6" : "M6 3.5 10.5 8 6 12.5"} />
+    </svg>
+  );
+}
+
 /** A topic that links somewhere: dot, name, small second line, optional strength. */
 function Row({ id, sub, w, onClick }: { id: string; sub?: string; w?: number; onClick: () => void }) {
   return (
@@ -61,6 +70,7 @@ function Row({ id, sub, w, onClick }: { id: string; sub?: string; w?: number; on
             <span className="bar" aria-hidden="true"><b style={{ width: w * 100 + "%", background: colOf(id) }} /></span>
           </>
         )}
+        <Chevron />
       </button>
     </li>
   );
@@ -75,7 +85,11 @@ export function Overview(c: PanelCtx) {
   const bubble = [...known];
   return (
     <>
-      <h2 tabIndex={-1} data-focus>Where to next</h2>
+      <div className="wn-head">
+        <h2 tabIndex={-1} data-focus>Where to next</h2>
+        {/* whereNext only returns planets one step out, so the distance is said once, here */}
+        {next.length > 0 && <Dist ring={1} />}
+      </div>
       {next.length ? (
         <ul className="wn-list">
           {next.map((id) => {
@@ -83,13 +97,12 @@ export function Overview(c: PanelCtx) {
             return (
               <li key={id}>
                 <button type="button" className="wn" onClick={() => { const t = p.nearest[0] ?? via?.to; t ? c.openTopic(t) : c.openPlanet(id); }}>
-                  <span className="wn__dot" style={{ background: planetColor(id) }} aria-hidden="true" />
                   <span className="wn__body">
                     <span className="wn__name">{planetName(id)}</span>
-                    <span className="wn__meta"><Dist ring={p.orbit} />{via && <span className="wn__via">via {topicName(via.from)}</span>}</span>
-                    {why && <span className="wn__why">{why}</span>}
+                    {via && <span className="wn__sub">via {topicName(via.from)}</span>}
+                    {why && <span className="wn__sub">{why}</span>}
                   </span>
-                  <span className="wn__go" aria-hidden="true">→</span>
+                  <Chevron />
                 </button>
               </li>
             );
@@ -99,20 +112,13 @@ export function Overview(c: PanelCtx) {
         <p className="empty">No planet is within reach of your bubble yet. Read stories on the map to open a route.</p>
       )}
 
-      <Sec title={`Your bubble · ${bubble.length} ${plural(bubble.length, "topic", "topics")}`}>
-        <ul className="chips">
-          {bubble.map((id) => (
-            <li key={id}>
-              <button type="button" className="tchip" onClick={() => c.openTopic(id)}>
-                <i style={{ background: colOf(id) }} aria-hidden="true" />{topicName(id)}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button type="button" className="at-link" onClick={() => c.openPlanet("home")}>Open your knowledge →</button>
-      </Sec>
-
-      <div className="btnrow"><button type="button" className="at-btn" onClick={c.reset}>Reset to starting bubble</button></div>
+      <button type="button" className="wn wn--bubble" aria-label={`Your bubble, ${bubble.length} ${plural(bubble.length, "topic", "topics")}`} onClick={() => c.openPlanet("home")}>
+        <span className="wn__body">
+          <span className="wn__name">Your bubble</span>
+          <span className="wn__sub wn__sub--clamp">{bubble.map(topicName).join(", ")}</span>
+        </span>
+        <Chevron />
+      </button>
     </>
   );
 }
@@ -137,6 +143,7 @@ export function HomePanel(c: PanelCtx) {
       </p>
       <div className="btnrow btnrow--edit">
         <button type="button" className="at-btn" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>Edit bubble</button>
+        {editing && <button type="button" className="at-btn" onClick={c.reset}>Reset to starting bubble</button>}
         {editing && !canRemove(c) && <p className="note">{LAST_NOTE}</p>}
       </div>
       {groups.map(({ cat, ids }) => (
@@ -145,6 +152,7 @@ export function HomePanel(c: PanelCtx) {
             <button type="button" className="gh" onClick={() => c.openPlanet(cat.id)}>
               <i style={{ background: planetColor(cat.id) }} aria-hidden="true" />{cat.name}
               <span className="gh__n">{ids.length} of {cat.topics.length}</span>
+              <Chevron />
             </button>
           </h3>
           <ul>
@@ -153,6 +161,7 @@ export function HomePanel(c: PanelCtx) {
                 <button type="button" className="row row--plain" onClick={() => c.openTopic(id)}>
                   <span className="row__dot" style={{ background: colOf(id) }} aria-hidden="true" />
                   <span className="nm">{topicName(id)}</span>
+                  <Chevron />
                 </button>
                 {editing && canRemove(c) && (
                   <button type="button" className="at-mini" aria-label={`Remove ${topicName(id)} from my bubble`} onClick={() => c.remove(id)}>Remove</button>
@@ -208,6 +217,7 @@ export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel:
                     <span className="row__dot" style={{ background: colOf(tid) }} aria-hidden="true" />
                     <span className="nm">{topicName(tid)}</span>
                     {!isSel && <Dist ring={ring} />}
+                    <Chevron down />
                   </button>
                   {!isSel && (inB
                     ? canRemove(c)
@@ -297,6 +307,7 @@ function TopicDetail({ id, lay, known, ...c }: PanelCtx & { id: string }) {
                 <button type="button" className="row" onClick={() => c.openTopic(s)}>
                   <span className="p-dot" style={{ background: colOf(s) }} aria-hidden="true" />
                   <span className="nm">{topicName(s)}<small>{i === 0 ? "You know this" : <>{catName(s)} · {strengthWord(lay.nodes[s].pw)}</>}</small>{why && <small className="why">{why}</small>}</span>
+                  {i < path.length - 1 && <Chevron />}
                 </button>
               </li>
             );
