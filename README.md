@@ -1,4 +1,4 @@
-# WHACK 2026: the "anti-Instagram" news app
+# WHACK 2026: Project Uncovered
 
 ## Aims
 
