@@ -15,7 +15,7 @@ from store import Store, get_store
 router = APIRouter(tags=["bubble"])
 
 KNOWN_THRESHOLD = 0.5
-SPREAD_SIGMA = 0.1  # gaussian width in cosine distance (1 - link w)
+SPREAD_SIGMA = 0.13  # gaussian width in cosine distance (1 - link w)
 SPREAD_PER_SWIPE = 0.45  # peak bump per swipe; < KNOWN_THRESHOLD so it takes 2+ swipes to pull a neighbour in
 assert SPREAD_PER_SWIPE < KNOWN_THRESHOLD
 
