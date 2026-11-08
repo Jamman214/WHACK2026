@@ -22,6 +22,9 @@ type Props = {
   mapHasOwnClose?: boolean;                     // the map content renders its own close/back button; skip the generic ✕
 };
 
+/** Keys typed into these belong to them, not to the feed. */
+const TYPING = 'input,textarea,select,[contenteditable]:not([contenteditable="false"])';
+
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
 
 /** Keep Tab / Shift+Tab inside the open sheet (the page behind it is inert as well). */
@@ -48,6 +51,9 @@ export function Feed({
   const sheet = useRef<HTMLDivElement>(null);
   const mapBtn = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
+  const activeRef = useRef(0);                                  // slide (DOM order) currently in view, updated immediately
+  const stepRef = useRef<{ idx: number; at: number } | null>(null);  // slide a keyboard step is heading to
+  const [settled, setSettled] = useState(0);                    // same, but only after scrolling pauses (drives the readout)
 
   useEffect(() => {
     let live = true;
@@ -60,16 +66,23 @@ export function Feed({
   const cards = useMemo(() => (items ? rankFeed(items, knownSet, pathTo, mix) : []), [items, knownSet, pathTo, mix]);
 
   // Report the slide in view. Works with any number of slides (skeleton/end slides report null).
+  // The position readout only updates once scrolling settles, so it (and its live region) isn't chatty.
   useEffect(() => {
     const root = scroller.current;
-    if (!root || !onActiveChange) return;
+    if (!root) return;
+    const slides = [...root.querySelectorAll<HTMLElement>('.feed__slide')];
+    let timer: number | undefined;
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
-        if (e.isIntersecting) onActiveChange(cards[Number((e.target as HTMLElement).dataset.index)] ?? null);
+        if (!e.isIntersecting) continue;
+        activeRef.current = slides.indexOf(e.target as HTMLElement);
+        onActiveChange?.(cards[Number((e.target as HTMLElement).dataset.index)] ?? null);
       }
+      clearTimeout(timer);
+      timer = window.setTimeout(() => setSettled(activeRef.current), 250);
     }, { root, threshold: 0.6 });
-    root.querySelectorAll('.feed__slide').forEach((s) => io.observe(s));
-    return () => io.disconnect();
+    slides.forEach((s) => io.observe(s));
+    return () => { io.disconnect(); clearTimeout(timer); };
   }, [cards, items, onActiveChange]);
 
   // Focus: into the sheet when it opens (its own back button if it has one), back to ◎ Map when it closes.
@@ -93,20 +106,37 @@ export function Feed({
         return;
       }
       const el = scroller.current;
-      if (!el || (e.target as HTMLElement).closest('input,textarea')) return;
+      if (!el || e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.(TYPING) || t?.isContentEditable) return;
       const dir = ['j', 'ArrowDown'].includes(e.key) ? 1 : ['k', 'ArrowUp'].includes(e.key) ? -1 : 0;
       if (!dir) return;
       e.preventDefault();
-      el.scrollBy({ top: dir * el.clientHeight, behavior: 'smooth' });
+      if (!items) return;
+      const slides = el.querySelectorAll<HTMLElement>('.feed__slide');
+      // Rapid presses build on where the last step was heading, not on the mid-scroll position.
+      const step = stepRef.current;
+      const from = step && performance.now() - step.at < 700 ? step.idx : activeRef.current;
+      const next = Math.max(0, Math.min(slides.length - 1, from + dir));
+      if (next === from) return;
+      stepRef.current = { idx: next, at: performance.now() };
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollTo({ top: next * el.clientHeight, behavior: reduce ? 'auto' : 'smooth' });
+      // Move keyboard focus with the view so Tab continues from the card you're reading.
+      const target = slides[next].firstElementChild as HTMLElement | null;
+      if (target) {
+        if (!target.hasAttribute('tabindex')) target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+      }
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, [mapOpen, setMapOpen]);
+  }, [mapOpen, setMapOpen, items]);
 
   return (
     <div className="feed">
       <div className="feed__scroller" ref={scroller} inert={map && mapOpen ? true : undefined}>
-        {!items && <div className="feed__slide" data-index={-1}><div className="nc nc--skeleton" aria-busy /></div>}
+        {!items && <div className="feed__slide" data-index={-1}><div className="nc nc--skeleton" role="status" aria-label="Loading stories" aria-busy="true" /></div>}
         {cards.map((c, i) => (
           <div className="feed__slide" key={c.id} data-index={i}>
             <NewsCard card={c} index={i} total={cards.length} topicName={topicName}
@@ -115,19 +145,19 @@ export function Feed({
         ))}
         {items && (
           <div className="feed__slide" data-index={-1}>
-            <div className="nc nc--end">
-              <h2 className="nc__headline">That's the edge of today's map.</h2>
+            <section className="nc nc--end" aria-labelledby="feed-end-title">
+              <h2 className="nc__headline" id="feed-end-title">That's the edge of today's map.</h2>
               <p className="nc__summary">See where these stories sit, and add new topics to your bubble.</p>
               {map && <button className="nc__cta" onClick={() => setMapOpen(true)}>Open your map</button>}
-            </div>
+            </section>
           </div>
         )}
       </div>
 
       {map && (
         <>
-          <button ref={mapBtn} className="feed__mapbtn" onClick={() => setMapOpen(true)} aria-label="Open your map" inert={mapOpen ? true : undefined}>
-            ◎ Map
+          <button ref={mapBtn} className="feed__mapbtn" onClick={() => setMapOpen(true)} aria-label="Open your map" aria-haspopup="dialog" inert={mapOpen ? true : undefined}>
+            <span aria-hidden>◎</span> Map
           </button>
           {mapOpen && (
             <div className="feed__sheet" ref={sheet} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Your map">
@@ -136,6 +166,19 @@ export function Feed({
             </div>
           )}
         </>
+      )}
+
+      {cards.length > 0 && (
+        <p className="feed__pos" aria-live="polite" aria-atomic="true" inert={mapOpen ? true : undefined}>
+          {settled < cards.length ? (
+            <>
+              <span aria-hidden>{settled + 1} / {cards.length}</span>
+              <span className="sr-only">Story {settled + 1} of {cards.length}</span>
+            </>
+          ) : (
+            <span>End of today's stories</span>
+          )}
+        </p>
       )}
     </div>
   );

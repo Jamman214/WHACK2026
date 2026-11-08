@@ -143,11 +143,21 @@
   .nc__cta { flex: 1 1 100%; }
 }
 
+/* j/k moves focus to the card itself (tabindex -1): a calm ring that hugs its corners. Mouse clicks don't trigger it. */
+.nc:focus { outline: none; }
+.nc:focus-visible { outline: 2px solid var(--f-focus); outline-offset: 4px; }
+/* A scrollable body is keyboard-focusable in Chrome; keep its ring inside the card. */
+.nc__body:focus-visible { outline: 2px solid var(--f-focus); outline-offset: -2px; }
 
 .nc--end { align-items: flex-start; }
 .nc--skeleton { height: 420px; animation: nc-pulse 1.2s ease-in-out infinite alternate; }
 @keyframes nc-pulse { to { opacity: .5; } }
 
+/* "3 / 53" position readout, bottom-left; the live region speaks "Story 3 of 53" via .sr-only. */
+.feed__pos {
+  position: absolute; left: 16px; bottom: max(16px, env(safe-area-inset-bottom)); margin: 0; min-height: 44px;
+  display: flex; align-items: center; font-size: 13px; color: var(--f-mute); font-variant-numeric: tabular-nums; pointer-events: none;
+}
 
 /* ---- map: secondary ---- */
 .feed__mapbtn {
