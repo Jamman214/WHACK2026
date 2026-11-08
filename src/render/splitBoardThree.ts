@@ -9,8 +9,8 @@ import {
 } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { type Ball, type BoardTokens, sideGlow } from "./splitBoardCanvas";
 import { BOARD_H, BOARD_W, PEGS, SPLIT, ballPosition, bucketRect, landTime, pathDuration, pathEvents, type PathEvent } from "../lib/galton";
+import { COUNTER_CARD, type Ball, type BoardTokens, sideGlow } from "./splitBoardCanvas";
 
 export interface BoardState {
   /** gate tilt in [-1, 1] */
@@ -213,17 +213,20 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     return bm;
   };
 
-  // ---- labels (HTML overlay: crisp mono text)
-  const mkLabel = (cls: string) => {
+  // ---- counter cards (HTML overlay in the bottom corners: crisp mono text, tinted per side)
+  const mkLabel = (cls: string, caption: string) => {
     const el = document.createElement("div");
-    el.className = "board-label " + cls;
-    const t = document.createElement("span");
-    t.className = "bl";
-    el.appendChild(t);
+    el.className = "board-card " + cls;
+    const cap = document.createElement("span");
+    cap.className = "cap";
+    cap.textContent = caption;
+    const num = document.createElement("b");
+    num.className = "num";
+    el.append(cap, num);
     container.appendChild(el);
-    return { el, t };
+    return { el, t: num };
   };
-  const labels = { seen: mkLabel("s"), unseen: mkLabel("u") };
+  const labels = { seen: mkLabel("s", "IN MY FEED"), unseen: mkLabel("u", "NOT IN MY FEED") };
   let lastCounts = { seen: -1, unseen: -1 };
   let lastGlow = { seen: -1, unseen: -1 };
 
@@ -279,11 +282,14 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
   let w = 0, h = 0;
   let dirty = true;
   const layoutLabels = () => {
-    const y = yBot + 17;
-    for (const [k, seen] of [["seen", true], ["unseen", false]] as const) {
-      const r = bucketRect(seen);
-      const p = project((r.x0 + r.x1) / 2, y, 0);
-      labels[k].el.style.transform = `translate(${canvas.offsetLeft + p.x}px, ${canvas.offsetTop + p.y}px) translate(-50%, -50%)`;
+    // flat overlay: board units -> canvas px, so the cards scale with the board rather than with the camera tilt
+    const k = w / BOARD_W;
+    const { w: cw, y, inset } = COUNTER_CARD;
+    for (const [key, seen] of [["seen", true], ["unseen", false]] as const) {
+      const x = seen ? inset : BOARD_W - inset - cw;
+      const el = labels[key].el;
+      el.style.setProperty("--bk", k.toFixed(4));
+      el.style.transform = `translate(${canvas.offsetLeft + x * k}px, ${canvas.offsetTop + y * k}px)`;
     }
   };
   const resize = () => {
@@ -392,8 +398,8 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
 
     if (s.counts.seen !== lastCounts.seen || s.counts.unseen !== lastCounts.unseen) {
       lastCounts = { ...s.counts };
-      labels.seen.t.innerHTML = "IN MY FEED  ·  <b>" + s.counts.seen + "</b>";
-      labels.unseen.t.innerHTML = "NOT IN MY FEED  ·  <b>" + s.counts.unseen + "</b>";
+      labels.seen.t.textContent = String(s.counts.seen);
+      labels.unseen.t.textContent = String(s.counts.unseen);
     }
     if (!animating) return;
     lastFlip = s.flip;

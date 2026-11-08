@@ -53,6 +53,32 @@ export function sideGlow(balls: readonly Ball[], seen: boolean, now: number, red
   return g;
 }
 
+/** Counter cards in the bottom corners (board units; taken from the Figma layout). */
+export const COUNTER_CARD = { w: 73, h: 35, y: 183, inset: 7, pad: 6 } as const;
+
+function drawCounter(ctx: CanvasRenderingContext2D, tk: BoardTokens, seen: boolean, n: number, g: number, col: string, reduced: boolean) {
+  const { w, h, y, inset, pad } = COUNTER_CARD;
+  const x = seen ? inset : BOARD_W - inset - w;
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  const k = 1 + (reduced ? 0 : 0.08 * g);
+  ctx.scale(k, k);
+  ctx.translate(-w / 2, -h / 2);
+  // tinted card: the side colour at ~8% over the surface, with a soft drop shadow
+  ctx.shadowColor = "rgba(0,0,0,0.08)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+  ctx.fillStyle = tk.surface;
+  ctx.beginPath(); ctx.roundRect(0, 0, w, h, 6); ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.save(); ctx.globalAlpha = 0.08 + 0.1 * g; ctx.fillStyle = seen ? tk.good : tk.bad; ctx.fill(); ctx.restore();
+  ctx.lineWidth = 0.5; ctx.strokeStyle = tk.surface; ctx.stroke();
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillStyle = tk.ink; ctx.font = "500 6px 'IBM Plex Mono', monospace";
+  ctx.fillText(seen ? "IN MY FEED" : "NOT IN MY FEED", pad, pad);
+  ctx.fillStyle = g > 0.3 ? col : tk.ink; ctx.font = "500 10px 'IBM Plex Mono', monospace";
+  ctx.fillText(String(n), pad, pad + 6 + 3);
+  ctx.restore();
+}
+
 /** Draw one frame. `flip` is the gate tilt in [-1, 1]. */
 export function drawSplitBoard(
   ctx: CanvasRenderingContext2D,
@@ -90,7 +116,6 @@ export function drawSplitBoard(
   ctx.restore();
 
   // hoppers + buckets, glowing green / red for a moment after a ball lands
-  ctx.textAlign = "center";
   for (const seen of [true, false]) {
     const m = (x: number) => (seen ? x : 2 * cx - x);
     const R = bucketRect(true);
@@ -111,13 +136,7 @@ export function drawSplitBoard(
     ctx.stroke();
     ctx.restore();
 
-    const n = seen ? state.counts.seen : state.counts.unseen;
-    ctx.save();
-    ctx.translate(m((R.x0 + R.x1) / 2), yBot + 15);
-    ctx.scale(1 + (reduced ? 0 : 0.25 * g), 1 + (reduced ? 0 : 0.25 * g));
-    ctx.fillStyle = g > 0 ? col : tk.muted; ctx.font = (g > 0.3 ? "700" : "500") + " 10px 'IBM Plex Mono', monospace";
-    ctx.fillText((seen ? "IN MY FEED  ·  " : "NOT IN MY FEED  ·  ") + n, 0, 0);
-    ctx.restore();
+    drawCounter(ctx, tk, seen, seen ? state.counts.seen : state.counts.unseen, g, col, reduced);
   }
 
   // balls

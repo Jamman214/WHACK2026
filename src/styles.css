@@ -21,19 +21,19 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 /* ============ Board tokens (intro + onboarding) ============ */
 .theme-board {
   --bg: #ECEFF3; --surface: #F8F9FB; --ink: #13161B; --muted: #5E6675; --line: #C9CFD9;
-  --peg: #8E97A8; --accent: #2F55F5; --accent-ink: #FFFFFF; --hollow: #ECEFF3;
+  --peg: #8E97A8; --accent: #2F55F5; --accent-ink: #FFFFFF; --tint-base: #FFFFFF; --tint-pct: 6%;
   --good: #16a34a; --bad: #dc2626;
   color: var(--ink); font-size: 15px; color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .theme-board {
     --bg: #0E1116; --surface: #171B22; --ink: #E7EAF0; --muted: #98A1B2; --line: #2C323D;
-    --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --hollow: #0E1116; --good: #4ade80; --bad: #f87171; color-scheme: dark;
+    --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --tint-base: #171B22; --tint-pct: 14%; --good: #4ade80; --bad: #f87171; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] .theme-board {
   --bg: #0E1116; --surface: #171B22; --ink: #E7EAF0; --muted: #98A1B2; --line: #2C323D;
-  --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --hollow: #0E1116; --good: #4ade80; --bad: #f87171; color-scheme: dark;
+  --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --tint-base: #171B22; --tint-pct: 14%; --good: #4ade80; --bad: #f87171; color-scheme: dark;
 }
 
 .theme-board .wrap {
@@ -83,18 +83,23 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 /* 3D board: no box, the scene's own backboard and shadows form the edge */
 .theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: visible; max-width: 720px; }
 .theme-board .board.is-3d canvas { aspect-ratio: 480 / 242; height: auto; }
-.theme-board .board-label {
-  position: absolute; left: 0; top: 0; pointer-events: none; white-space: pre; will-change: transform;
-  font: 500 11px var(--mono); color: var(--muted); letter-spacing: 0.02em; --bump: 0;
+/* counter cards in the bottom corners; --bk is board-units -> px and --bump (0..1) is set by the renderer while the bucket glows */
+.theme-board .board-card {
+  position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; --bump: 0; --bk: 1;
+  box-sizing: border-box; width: calc(73px * var(--bk)); height: calc(35px * var(--bk)); padding: calc(6px * var(--bk));
+  display: flex; flex-direction: column; gap: calc(2px * var(--bk)); border-radius: calc(6px * var(--bk));
+  border: 1px solid var(--tint-base); box-shadow: 0 calc(2px * var(--bk)) calc(6px * var(--bk)) rgba(0, 0, 0, 0.06);
+  font: 500 calc(6px * var(--bk)) / 1.2 var(--mono); letter-spacing: 0.02em; white-space: nowrap;
+  color: color-mix(in srgb, var(--ink), var(--muted) 35%);
 }
-/* count pops (scale + colour + weight) while its bucket glows; --bump runs 0..1 and is set from the renderer */
-.theme-board .board-label .bl {
-  display: inline-block; transform-origin: 50% 60%; transform: scale(calc(1 + 0.3 * var(--bump)));
+.theme-board .board-card.s { background: color-mix(in srgb, var(--good) var(--tint-pct), var(--tint-base)); }
+.theme-board .board-card.u { background: color-mix(in srgb, var(--bad) var(--tint-pct), var(--tint-base)); }
+.theme-board .board-card .num {
+  font-size: calc(10px * var(--bk)); font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1;
+  transform-origin: 0 50%; transform: scale(calc(1 + 0.25 * var(--bump)));
 }
-.theme-board .board-label.s .bl { color: color-mix(in srgb, var(--muted), var(--good) calc(var(--bump) * 100%)); }
-.theme-board .board-label.u .bl { color: color-mix(in srgb, var(--muted), var(--bad) calc(var(--bump) * 100%)); }
-.theme-board .board-label b { font-weight: 500; font-variant-numeric: tabular-nums; }
-.theme-board .board-label.s b, .theme-board .board-label.u b { font-weight: 700; }
+.theme-board .board-card.s .num { color: color-mix(in srgb, currentColor, var(--good) calc(var(--bump) * 100%)); }
+.theme-board .board-card.u .num { color: color-mix(in srgb, currentColor, var(--bad) calc(var(--bump) * 100%)); }
 .theme-board .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
 .theme-board .summary { min-height: 3em; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
 .theme-board .summary b { color: var(--ink); font-weight: 500; }
@@ -116,7 +121,7 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 
 @media (prefers-reduced-motion: reduce) {
   .theme-board .card.enter, .screen.fade { animation: none; }
-  .theme-board .board-label .bl { transform: none; }
+  .theme-board .board-card .num { transform: none; }
 }
 
 /* ============ Atlas tokens ============ */
