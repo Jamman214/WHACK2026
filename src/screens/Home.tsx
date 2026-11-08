@@ -8,8 +8,7 @@ import { saveBubble } from "../lib/bubbleStore";
 import { layout, nearbyTopics, reachablePath } from "../lib/layout";
 import { bubbleAfterRead } from "../lib/reading";
 import Atlas, { type AtlasFocus } from "./Atlas";
-import Toast from "./atlas/Toast";
-import { plural } from "./atlas/util";
+import ReadToast, { type ReadProgress } from "./ReadToast";
 
 const topicName = (id: string) => TOPIC_BY_ID[id]?.name ?? id;
 
@@ -36,7 +35,7 @@ export default function Home({ initialBubble, history, onRedo }: Props) {
   };
   // The Atlas is only mounted while the map is open, so the edition saves the bubble itself.
   useEffect(() => { saveBubble(bubble); }, [bubble]);
-  const [toast, setToast] = useState<{ id: number; message: string; prev: string[] } | null>(null);
+  const [toast, setToast] = useState<{ id: number; progress: ReadProgress; prev: string[] } | null>(null);
   const toastId = useRef(0);
   const dismissToast = useCallback(() => setToast(null), []);
   const [map, setMap] = useState<{ open: boolean; focus?: AtlasFocus }>({ open: false });
@@ -51,9 +50,13 @@ export default function Home({ initialBubble, history, onRedo }: Props) {
     const next = bubbleAfterRead(bubble, card.topicId);
     if (!next) return;
     const after = layout(MODEL, next, DEFAULT_STRENGTH);
-    const n = TOPICS.filter((t) => after.nodes[t.id].ring === 1 && lay.nodes[t.id].ring !== 1).length;
-    const tail = n === 0 ? "" : ` · ${n} ${plural(n, "topic is", "topics are")} now one step away`;
-    setToast({ id: ++toastId.current, message: `Added ${topicName(card.topicId)} to your bubble${tail}`, prev: bubble });
+    const unlocked = TOPICS.filter((t) => after.nodes[t.id].ring === 1 && lay.nodes[t.id].ring !== 1).length;
+    const hops = card.placement.kind === "bridge" ? Math.min(card.placement.hops, 3) : 1;
+    setToast({
+      id: ++toastId.current,
+      progress: { topic: topicName(card.topicId), hops, before: bubble.length, after: next.length, total: TOPICS.length, unlocked },
+      prev: bubble,
+    });
     changeBubble(next);
   };
   const undoRead = () => { if (toast) changeBubble(toast.prev); setToast(null); };
@@ -81,11 +84,7 @@ export default function Home({ initialBubble, history, onRedo }: Props) {
           </div>
         }
       />
-      {toast && !map.open && (
-        <div className="theme-atlas atlas home__toast">
-          <Toast key={toast.id} message={toast.message} onUndo={undoRead} onDismiss={dismissToast} />
-        </div>
-      )}
+      {toast && !map.open && <ReadToast key={toast.id} progress={toast.progress} onUndo={undoRead} onDismiss={dismissToast} />}
     </div>
   );
 }
