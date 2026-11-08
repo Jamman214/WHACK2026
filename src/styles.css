@@ -94,10 +94,11 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 }
 .theme-board .board canvas { display: block; width: min(100cqw, calc(100cqh * 480 / 242)); height: auto; aspect-ratio: 480 / 242; margin-inline: auto; }
 /* 3D board: no box, the scene's own backboard and shadows form the edge */
-.theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: visible; max-width: 1440px; }
-/* the canvas's top is empty above the funnel, so it slides up under the answer buttons (the board never takes clicks).
-   0.444 = height/width of the canvas (242/480) minus that 0.06 slide, so the canvas still ends inside the board */
-.theme-board .board.is-3d canvas { --w: min(100cqw, calc(100cqh / 0.444)); width: var(--w); margin-top: calc(var(--w) * -0.06); }
+.theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: clip; max-width: none; }
+/* the canvas has empty margin above the funnel (~0.072 of its width) and below the buckets' shadow (~0.017), so the drawn board
+   fills the box edge to edge: it slides up by 0.073 (the board never takes clicks) and the box clips the empty bottom strip.
+   0.416 = canvas height/width (242/480 = 0.504) minus the 0.073 slide and the 0.015 clipped strip */
+.theme-board .board.is-3d canvas { --w: min(100cqw, calc(100cqh / 0.416)); width: var(--w); margin-top: calc(var(--w) * -0.073); }
 /* counter cards in the bottom corners; --bk is board-units -> px and --bump (0..1) is set by the renderer while the bucket glows */
 .theme-board .board-card {
   position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; --bump: 0; --bk: 1;
@@ -123,15 +124,18 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 }
 
 /* Onboarding fits the window: the board absorbs the spare height. It only scrolls if the window is too short for the controls */
-.theme-board.onboarding { height: 100dvh; min-height: 0; overflow-y: auto; }
-.theme-board.onboarding .wrap { height: 100%; padding: 16px 16px 12px; gap: 12px; }
+.theme-board.onboarding { --ob-space: 20px; height: 100dvh; min-height: 0; overflow-y: auto; }
+/* one spacing value: the page padding on all four sides, the gap between stacked blocks, and the gaps inside the top band */
+.theme-board.onboarding .wrap { height: 100%; max-width: none; padding: var(--ob-space); gap: var(--ob-space); }
 /* a mirrored band above the board: equal side columns either side of the card, on the same axis as the board's two buckets */
 .ob-top {
-  display: grid; gap: 8px 32px; grid-template-columns: minmax(0, 1fr) minmax(0, 520px) minmax(0, 1fr);
+  display: grid; gap: var(--ob-space); grid-template-columns: minmax(0, 1fr) minmax(0, 520px) minmax(0, 1fr);
   grid-template-rows: 1fr auto; grid-template-areas: "intro deck stat" "tools deck stat";
 }
-.ob-intro { grid-area: intro; display: flex; flex-direction: column; gap: 8px; }
-.theme-board .ob-top .deck { grid-area: deck; align-self: end; }
+.ob-intro { grid-area: intro; display: flex; flex-direction: column; gap: calc(var(--ob-space) / 2); }
+.theme-board .ob-top .deck { grid-area: deck; align-self: stretch; gap: var(--ob-space); }
+/* the card takes any height the side columns have beyond its own, so the band's top and bottom edges line up across all three columns */
+.theme-board.onboarding .card { flex: 1 1 auto; }
 /* same height as the answer row, so all the buttons sit on one line */
 .ob-tools { grid-area: tools; display: flex; gap: 10px; align-items: center; height: 64px; }
 .ob-stat { grid-area: stat; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; font-variant-numeric: tabular-nums; }
@@ -157,6 +161,7 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
   .ob-stat__counts { display: none; }
 }
 @media (max-height: 800px) {
+  .theme-board.onboarding { --ob-space: 16px; }
   .theme-board.onboarding .card { height: 140px; padding: 12px 18px; gap: 4px; }
   .theme-board.onboarding .card .hl { font-size: 18px; }
   .ob-stat__n { font-size: 72px; }
