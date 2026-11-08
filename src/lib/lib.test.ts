@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CATEGORIES, DEMO_BUBBLE, LINKS, TOPICS } from "../data/taxonomy";
 import { bubbleFrom } from "../data/headlines";
-import { BALL_RADIUS, BOARD_W, SPLIT, ballPosition, bucketRect, createSplitBoard, landTime, pathDuration, pathEvents, scriptedPath } from "./galton";
+import { BALL_RADIUS, BOARD_W, SPLIT, ballPosition, bucketRect, createSplitBoard, landTime, pathDuration, pathEvents, scriptedPath, type PathPoint } from "./galton";
 import { CX, CY, buildModel, layout, pathTo } from "./layout";
 import { bubbleAfterRead } from "./reading";
 
@@ -121,6 +121,17 @@ describe("galton split board", () => {
       return Array.from({ length: 18 }, (_, i) => board.path(i % 3 !== 0, rng));
     };
     expect(run()).toEqual(run());
+  });
+
+  it("undo frees the bucket slot, so the next ball lands where the undone one did", () => {
+    const board = createSplitBoard();
+    board.path(true, mulberry(1));
+    const last = (b: PathPoint[]) => b[b.length - 1];
+    const undone = last(board.path(true, mulberry(2)));
+    board.undo(true);
+    expect(board.counts.seen).toBe(1);
+    const again = last(board.path(true, mulberry(2)));
+    expect([again.x, again.y]).toEqual([undone.x, undone.y]);
   });
 
   it("pegs get hit, and the ball lands then rebounds at least twice with decaying height", () => {

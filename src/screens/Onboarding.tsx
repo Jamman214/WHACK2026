@@ -129,6 +129,40 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
     demoStep(); // no-op if the card is still loading: fetchNext carries on when it lands
   }, [spawn]);
 
+  /** Take back the last answer: its card returns to view and its ball leaves the board. */
+  function undo() {
+    const i = idxRef.current - 1;
+    if (i < 0) return;
+    run.current++; // the reply to this answer no longer applies
+    demo.current = false;
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    history.current.pop();
+    deck.current.length = i + 1;
+    setServed(i + 1);
+    setFinished(false);
+    advance(i);
+
+    // a morph still in flight is the latest answer: its ball hasn't spawned yet
+    const morph = [...morphs.current].pop();
+    if (morph) {
+      morph.anim.cancel();
+      morph.el.remove();
+      morphs.current.delete(morph);
+    } else {
+      const b = balls.current.pop();
+      if (b) {
+        board.current.undo(b.seen);
+        if (b.landed) {
+          landed.current[b.seen ? "seen" : "unseen"]--;
+          setCounts({ ...landed.current });
+        }
+      }
+    }
+    const prev = balls.current[balls.current.length - 1];
+    gate.current.target = prev ? (prev.seen ? -1 : 1) : 0;
+  }
+
   const reset = () => {
     clearTimers();
     balls.current = [];
@@ -199,11 +233,12 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
     };
   }, []);
 
-  // keyboard: ← in my feed, → not in my feed
+  // keyboard: ← in my feed, → not in my feed, Backspace undoes
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") { e.preventDefault(); choose(true); }
       if (e.key === "ArrowRight") { e.preventDefault(); choose(false); }
+      if (e.key === "Backspace") { e.preventDefault(); undo(); }
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
@@ -219,59 +254,58 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
   useEffect(() => clearTimers, []);
   useEffect(() => { if (done) mapBtnRef.current?.focus(); }, [done]);
 
-  const summary = (() => {
-    const { seen: s, unseen: u } = counts;
-    return <><b>{s}</b> in your feed · <b>{u}</b> outside it · {Math.round((100 * u) / (s + u))}% of the sample is a blind spot</>;
-  })();
+  const { seen, unseen } = counts;
+  const sorted = seen + unseen;
 
   const h = deck.current[idx];
   return (
-    <div className="screen theme-board fade" ref={rootRef}>
+    <div className="screen theme-board onboarding fade" ref={rootRef}>
       <div className="wrap">
-        <header>
-          <div>
+        <div className="ob-top">
+          <div className="ob-intro">
             <h1>Let's test your knowledge</h1>
+            <p className="blurb">
+              <b>Is this in your feed?</b> Your answer tips the gate at the top, so the ball can only fall into that half.
+              From there every bounce is random, and it lands in one of two buckets: in my feed or not.
+            </p>
           </div>
-        </header>
 
-        <p className="blurb">
-          <b>Is this in your feed?</b> Your answer tips the gate at the top, so the ball can only fall into that half.
-          From there every bounce is random, and it lands in one of two buckets: in my feed or not.
-        </p>
-
-        <div className="deck">
-          <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "") + (done ? " gone" : "")} ref={cardRef} key={idx} aria-hidden={done || undefined}>
-            {done || !h ? null : (
-              <>
-                <div className="cat">{TOPIC_BY_ID[h.topicId].name}</div>
-                <div className="hl">{h.headline}</div>
-                <div className="meta">Sample headline · {idx + 1} of {max}</div>
-              </>
-            )}
+          <div className="deck">
+            <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "") + (done ? " gone" : "")} ref={cardRef} key={idx} aria-hidden={done || undefined}>
+              {done || !h ? null : (
+                <>
+                  <div className="cat">{TOPIC_BY_ID[h.topicId].name}</div>
+                  <div className="hl">{h.headline}</div>
+                  <div className="meta">{idx + 1} of {max}</div>
+                </>
+              )}
+            </div>
+            <div className="choices">
+              {done ? (
+                <button className="btn primary big" ref={mapBtnRef} onClick={() => onDone(bubbleFrom(known.current, deck.current.filter((_, i) => history.current[i]?.swipe === "right").map((c) => c.topicId)), history.current)}>
+                  Open your feed →
+                </button>
+              ) : (
+                <>
+                  <button className="btn primary" onClick={() => choose(true)}><kbd>←</kbd> In my feed</button>
+                  <button className="btn" onClick={() => choose(false)}>Not in my feed <kbd>→</kbd></button>
+                </>
+              )}
+            </div>
           </div>
-          <div className="choices">
-            {done ? (
-              <button className="btn primary big" ref={mapBtnRef} onClick={() => onDone(bubbleFrom(known.current, deck.current.filter((_, i) => history.current[i]?.swipe === "right").map((c) => c.topicId)), history.current)}>
-                Open your feed →
-              </button>
-            ) : (
-              <>
-                <button className="btn primary" onClick={() => choose(true)}><kbd>←</kbd> In my feed</button>
-                <button className="btn" onClick={() => choose(false)}>Not in my feed <kbd>→</kbd></button>
-              </>
-            )}
+
+          <div className="ob-tools">
+            <button className="btn ghost" onClick={undo} disabled={idx === 0}><kbd>⌫</kbd> Undo</button>
+            <button className="btn ghost" onClick={reset}>Reset</button>
+          </div>
+
+          <div className="ob-stat" aria-live="polite">
+            <div className={"ob-stat__n" + (sorted ? "" : " is-empty")}>{sorted ? Math.round((100 * unseen) / sorted) : 0}%</div>
+            <p className="ob-stat__what">of the sample is a blind spot</p>
           </div>
         </div>
 
         <div className="board" ref={boardRef} />
-
-        <div className="foot">
-          <div className="summary" aria-live="polite">{summary}</div>
-          <div className="choices">
-            <button className="btn ghost" onClick={playDemo} disabled={done}>Play demo feed</button>
-            <button className="btn ghost" onClick={reset}>Reset</button>
-          </div>
-        </div>
       </div>
     </div>
   );
