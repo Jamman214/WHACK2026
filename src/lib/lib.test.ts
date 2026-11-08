@@ -3,6 +3,7 @@ import { CATEGORIES, DEMO_BUBBLE, LINKS, TOPICS } from "../data/taxonomy";
 import { bubbleFrom, demoSeen } from "../data/headlines";
 import { BALL_RADIUS, BOARD_W, SPLIT, ballPosition, bucketRect, createSplitBoard, landTime, pathDuration, pathEvents, scriptedPath } from "./galton";
 import { CX, CY, buildModel, layout, pathTo } from "./layout";
+import { bubbleAfterRead } from "./reading";
 
 // small seeded RNG so failures are reproducible
 const mulberry = (seed: number) => () => {
@@ -176,6 +177,13 @@ describe("radial layout", () => {
       expect(lay.nodes[p[0]].ring).toBe(0);
       expect(p).toHaveLength(lay.nodes[t.id].ring + 1);
     }
+  });
+});
+
+describe("reading grows the bubble", () => {
+  it("adds the story's topic once, and leaves a topic already inside alone", () => {
+    expect(bubbleAfterRead(["ai"], "chips")).toEqual(["ai", "chips"]);
+    expect(bubbleAfterRead(["ai", "chips"], "chips")).toBeNull();
   });
 });
 

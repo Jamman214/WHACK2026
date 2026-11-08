@@ -17,7 +17,8 @@ type Props = {
   onActiveChange?: (card: FeedCardModel | null) => void;  // card currently in view (null: loading/end)
   onChipHover?: (topicId: string | null) => void;
   onChipClick?: (topicId: string, cardTopicId: string) => void;
-  mapOpen?: boolean;                            // controlled map sheet (optional)
+  onRead?: (card: FeedCardModel) => void;       // the reader opened a story's full text
+  mapOpen?: boolean;                           // controlled map sheet (optional)
   onMapOpenChange?: (open: boolean) => void;
   mapHasOwnClose?: boolean;                     // the map content renders its own close/back button; skip the generic ✕
 };
@@ -41,7 +42,7 @@ function trapTab(e: KeyboardEvent, root: HTMLElement | null) {
 
 export function Feed({
   known, candidates, provider, pathTo, topicName, map, perTopic = 2,
-  mix, reason, onActiveChange, onChipHover, onChipClick, mapOpen: mapOpenProp, onMapOpenChange, mapHasOwnClose,
+  mix, reason, onActiveChange, onChipHover, onChipClick, onRead, mapOpen: mapOpenProp, onMapOpenChange, mapHasOwnClose,
 }: Props) {
   const [items, setItems] = useState<FeedItem[] | null>(null);
   const [ownMapOpen, setOwnMapOpen] = useState(false);
@@ -140,7 +141,7 @@ export function Feed({
         {cards.map((c, i) => (
           <div className="feed__slide" key={c.id} data-index={i}>
             <NewsCard card={c} index={i} total={cards.length} topicName={topicName}
-              reason={reason} onChipHover={onChipHover} onChipClick={onChipClick} />
+              reason={reason} onChipHover={onChipHover} onChipClick={onChipClick} onRead={onRead} />
           </div>
         ))}
         {items && (

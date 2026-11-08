@@ -9,9 +9,11 @@ type Props = {
   reason?: (a: string, b: string) => string | undefined;
   onChipHover?: (topicId: string | null) => void;
   onChipClick?: (topicId: string, cardTopicId: string) => void;
+  /** The reader opened the full story. */
+  onRead?: (card: FeedCardModel) => void;
 };
 
-export function NewsCard({ card, topicName, index, total, onChipHover, onChipClick }: Props) {
+export function NewsCard({ card, topicName, index, total, onChipHover, onChipClick, onRead }: Props) {
   const p = card.placement;
   const outside = p.kind === 'bridge';
   const ring = outside ? Math.min(p.hops, 3) : 0;
@@ -73,7 +75,7 @@ export function NewsCard({ card, topicName, index, total, onChipHover, onChipCli
 
       <footer className="nc__foot">
         <span className="nc__source">{card.source} · {ago(card.publishedAt)}</span>
-        <a className="nc__cta" href={card.url} target="_blank" rel="noopener noreferrer">
+        <a className="nc__cta" href={card.url} target="_blank" rel="noopener noreferrer" onClick={() => onRead?.(card)}>
           Read the full story <span aria-hidden>↗</span><span className="sr-only"> (opens in a new tab)</span>
         </a>
       </footer>

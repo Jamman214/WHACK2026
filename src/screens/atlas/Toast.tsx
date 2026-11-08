@@ -9,7 +9,14 @@ export default function Toast({ message, onUndo, onDismiss }: { message: string;
   const [focus, setFocus] = useState(false);
   const dismiss = useRef(onDismiss);
   dismiss.current = onDismiss;
-  const paused = hover || focus;
+  // Reading a story opens a new tab: don't spend the toast's lifetime while the reader is away.
+  const [away, setAway] = useState(() => document.hidden);
+  useEffect(() => {
+    const f = () => setAway(document.hidden);
+    document.addEventListener("visibilitychange", f);
+    return () => document.removeEventListener("visibilitychange", f);
+  }, []);
+  const paused = hover || focus || away;
   useEffect(() => {
     if (paused) return;
     const t = setTimeout(() => dismiss.current(), LIFETIME);
