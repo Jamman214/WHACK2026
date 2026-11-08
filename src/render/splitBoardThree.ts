@@ -48,7 +48,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
   } catch {
     return null;
   }
-  const { cx, yB, bH, half, slopeOuterY, slopeInnerY } = SPLIT;
+  const { cx, yB, bH, half, slopeOuterY, slopeInnerY, top, gateY, wallTop } = SPLIT;
   const yBot = yB + bH;
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -119,11 +119,11 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     board.add(m);
     return m;
   };
-  // funnel + centre wall
-  bar(cx - 40, 0, cx - 8, 16, 2.2, WALL_D, mats.wall);
-  bar(cx + 40, 0, cx + 8, 16, 2.2, WALL_D, mats.wall);
-  bar(cx, 30, cx, yBot, 2, WALL_D, mats.wall);
-  // hoppers: a sloped chute from the edge of the peg field into a compact bucket, on each side
+  // funnel + centre wall (the wall stops at the roof ridge where the inner hopper slopes meet)
+  bar(cx - 40, top, cx - 8, top + 16, 2.2, WALL_D, mats.wall);
+  bar(cx + 40, top, cx + 8, top + 16, 2.2, WALL_D, mats.wall);
+  bar(cx, wallTop, cx, slopeInnerY, 2, WALL_D, mats.wall);
+  // hoppers: a sloped chute from the edge of the peg field into a bucket, on each side
   for (const seen of [true, false]) {
     const m = (x: number) => (seen ? x : 2 * cx - x);
     const R = bucketRect(true), mat = seen ? mats.bucketS : mats.bucketU;
@@ -132,7 +132,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     bar(m(x0), yB, m(x0), yBot, 2, WALL_D, mat);
     bar(m(x0), yBot, m(x1), yBot, 2, WALL_D, mat);
     bar(m(x1), yBot, m(x1), yB, 2, WALL_D, mat);
-    bar(m(x1), yB, m(cx - 2), slopeInnerY, 2, WALL_D, mat);
+    bar(m(x1), yB, m(cx), slopeInnerY, 2, WALL_D, mat);
   }
 
   // pegs (centre column removed: that's where the wall is)
@@ -161,7 +161,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
 
   // gate: a bar on a pivot, tilted by `flip`
   const gate = new Group();
-  gate.position.set(wx(cx), wy(23), 2.4);
+  gate.position.set(wx(cx), wy(gateY), 2.4);
   const gateBar = new Mesh(track(new CapsuleGeometry(1.8, 28, 4, 12)), mats.accent);
   gateBar.rotation.z = Math.PI / 2;
   gateBar.castShadow = true;
@@ -187,7 +187,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
   const glowRig = (seen: boolean) => {
     const R = bucketRect(seen);
     const mat = new MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, opacity: 0 });
-    const halo = new Mesh(track(new PlaneGeometry(210, 100)), mat);
+    const halo = new Mesh(track(new PlaneGeometry(190, 110)), mat);
     halo.position.set(wx((R.x0 + R.x1) / 2), wy(yB + bH / 2 + 4), 0.4);
     halo.renderOrder = -1;
     halo.visible = false;

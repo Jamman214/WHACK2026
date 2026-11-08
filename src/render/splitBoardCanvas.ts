@@ -59,7 +59,7 @@ export function drawSplitBoard(
   tk: BoardTokens,
   state: { flip: number; counts: { seen: number; unseen: number }; balls: Ball[]; now: number },
 ) {
-  const { cx, dx, rows, y0, dy, yB, bH, half, slopeOuterY, slopeInnerY } = SPLIT;
+  const { cx, dx, rows, y0, dy, yB, bH, half, slopeOuterY, slopeInnerY, top, gateY, wallTop } = SPLIT;
   const yBot = yB + bH;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   ctx.clearRect(0, 0, BOARD_W, BOARD_H);
@@ -68,10 +68,11 @@ export function drawSplitBoard(
   ctx.strokeStyle = tk.line;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(cx - 40, 0); ctx.lineTo(cx - 8, 16);
-  ctx.moveTo(cx + 40, 0); ctx.lineTo(cx + 8, 16);
+  ctx.moveTo(cx - 40, top); ctx.lineTo(cx - 8, top + 16);
+  ctx.moveTo(cx + 40, top); ctx.lineTo(cx + 8, top + 16);
   ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx, 30); ctx.lineTo(cx, yBot); ctx.stroke();
+  // the wall stops at the roof ridge where the two inner hopper slopes meet
+  ctx.beginPath(); ctx.moveTo(cx, wallTop); ctx.lineTo(cx, slopeInnerY); ctx.stroke();
 
   // pegs (centre column removed: that's where the wall is)
   ctx.fillStyle = tk.peg;
@@ -83,7 +84,7 @@ export function drawSplitBoard(
 
   // gate
   ctx.save();
-  ctx.translate(cx, 23); ctx.rotate(state.flip * 0.4);
+  ctx.translate(cx, gateY); ctx.rotate(state.flip * 0.4);
   ctx.strokeStyle = tk.accent; ctx.lineWidth = 3.5; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(-16, 0); ctx.lineTo(16, 0); ctx.stroke();
   ctx.restore();
@@ -107,7 +108,7 @@ export function drawSplitBoard(
     if (g > 0) { ctx.shadowColor = col; ctx.shadowBlur = 14 * g; }
     ctx.beginPath();
     ctx.moveTo(m(cx - half), slopeOuterY); ctx.lineTo(m(R.x0 - 1), yB); ctx.lineTo(m(R.x0 - 1), yBot);
-    ctx.lineTo(m(R.x1 + 1), yBot); ctx.lineTo(m(R.x1 + 1), yB); ctx.lineTo(m(cx - 2), slopeInnerY);
+    ctx.lineTo(m(R.x1 + 1), yBot); ctx.lineTo(m(R.x1 + 1), yB); ctx.lineTo(m(cx), slopeInnerY);
     ctx.stroke();
     ctx.restore();
 
