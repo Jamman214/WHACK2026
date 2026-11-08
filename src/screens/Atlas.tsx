@@ -207,7 +207,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
     openPlanet: (id) => { openPlanet(id); toPanel(); },
     openTopic: (id) => { openTopic(id); toPanel(); },
     toggleTopic,
-    add, remove,
+    read: add, remove,
     goMap: () => { goMap(); toPanel(); },
     reset, fresh,
   };
@@ -297,11 +297,18 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
         {/* top-left, in reading order: the way out (feed), the way up (crumbs), then the topic finder */}
         <div className="ov-tl" ref={tlRef}>
           <section className="ov ov-head" aria-labelledby="atlas-title">
+            {planet !== null && (
+              <button type="button" className="at-back" onClick={() => { goMap(); toPanel(); }}>
+                <span aria-hidden="true" className="at-back__arrow">←</span>
+                <span>Back to map</span>
+                <kbd aria-hidden="true">Esc</kbd>
+              </button>
+            )}
             {onClose && (
-              <button type="button" className="at-back" data-autofocus onClick={close}>
+              <button type="button" className={planet !== null ? "at-back at-back--quiet" : "at-back"} data-autofocus onClick={close}>
                 <span aria-hidden="true" className="at-back__arrow">←</span>
                 <span>Back to your feed</span>
-                <kbd aria-hidden="true">Esc</kbd>
+                {planet === null && <kbd aria-hidden="true">Esc</kbd>}
               </button>
             )}
             <div className="ov-head__text">
@@ -318,7 +325,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
             <Crumbs planet={planet} sel={sel} mobile={mobile} goMap={ctx.goMap} leaveTopic={leaveTopic} />
           </div>
 
-          <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} onAdd={add} />
+          <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} />
         </div>
 
         {/* right (desktop) / bottom sheet (mobile): progress + the panel for the current level */}

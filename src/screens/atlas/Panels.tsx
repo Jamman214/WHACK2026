@@ -23,7 +23,8 @@ export interface PanelCtx {
   openTopic: (id: string) => void;
   /** Select / deselect a topic inside the open planet. */
   toggleTopic: (id: string) => void;
-  add: (id: string) => void;
+  /** A story on this topic was opened: reading it is what brings the topic into the bubble. */
+  read: (id: string) => void;
   remove: (id: string) => void;
   goMap: () => void;
   reset: () => void;
@@ -95,7 +96,7 @@ export function Overview(c: PanelCtx) {
           })}
         </ul>
       ) : (
-        <p className="empty">No planet is within reach of your bubble yet. Add a topic from the search to open a route.</p>
+        <p className="empty">No planet is within reach of your bubble yet. Read stories on the map to open a route.</p>
       )}
 
       <Sec title={`Your bubble · ${bubble.length} ${plural(bubble.length, "topic", "topics")}`}>
@@ -212,7 +213,7 @@ export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel:
                     ? canRemove(c)
                       ? <button type="button" className="at-mini" aria-label={`Remove ${topicName(tid)} from my bubble`} onClick={() => c.remove(tid)}>Remove</button>
                       : <span className="at-mini at-mini--note" title={LAST_NOTE}>Last topic</span>
-                    : <button type="button" className="at-mini at-mini--add" aria-label={`Add ${topicName(tid)} to my bubble`} onClick={() => c.add(tid)}>Add</button>)}
+                    : null)}
                 </div>
                 {isSel && <TopicDetail id={tid} {...c} />}
               </li>
@@ -221,7 +222,7 @@ export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel:
         </ul>
       </Sec>
 
-      {!sel && <News key={id} provider={c.provider} lay={lay} ids={p.topics} heading={`News from ${cat.name}`} showTopic />}
+      {!sel && <News key={id} provider={c.provider} lay={lay} ids={p.topics} heading={`News from ${cat.name}`} showTopic onRead={c.read} />}
 
     </>
   );
@@ -236,7 +237,7 @@ function Connect({ id, p, out, lay, ...c }: PanelCtx & { id: CategoryId; p: Sola
   if (p.complete) {
     body = <p className="empty">You know every topic here. This planet is fully part of your bubble.</p>;
   } else if (out) {
-    body = <p className="empty">No chain of related links reaches this planet from your bubble yet. Add a topic on a nearer planet to open a route.</p>;
+    body = <p className="empty">No chain of related links reaches this planet from your bubble yet. Read a story on a nearer planet to open a route.</p>;
   } else if (!steps.length) {
     body = (
       <p className="empty">
@@ -283,7 +284,7 @@ function TopicDetail({ id, lay, known, ...c }: PanelCtx & { id: string }) {
       </Sec>
     );
   } else if (!Number.isFinite(ring)) {
-    body = <p className="empty">No chain of related links reaches this topic from your bubble yet. Add a nearby topic to open up a route.</p>;
+    body = <p className="empty">No chain of related links reaches this topic from your bubble yet. Read a story on a nearby topic to open up a route.</p>;
   } else {
     const path = pathTo(lay, id);
     body = (
@@ -310,12 +311,12 @@ function TopicDetail({ id, lay, known, ...c }: PanelCtx & { id: string }) {
       {body}
       <div className="btnrow">
         {ring !== 0 ? (
-          <button type="button" className="at-btn primary" onClick={() => c.add(id)}>Add to my bubble</button>
+          <p className="note">Read a story below to bring this topic into your bubble.</p>
         ) : known.size > 1 ? (
           <button type="button" className="at-btn" onClick={() => c.remove(id)}>Remove from bubble</button>
         ) : <p className="note">{LAST_NOTE}</p>}
       </div>
-      <News key={id} provider={c.provider} lay={lay} ids={[id]} heading={`News on ${topicName(id)}`} showTopic={false} />
+      <News key={id} provider={c.provider} lay={lay} ids={[id]} heading={`News on ${topicName(id)}`} showTopic={false} onRead={c.read} />
     </div>
   );
 }

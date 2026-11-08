@@ -37,8 +37,10 @@ function reason(lay: Layout, topicId: string): string {
 const SHOWN = 4;
 
 /** A "News" block: skeletons while loading, an empty state, then cards with a link out. */
-export default function News({ provider, lay, ids, heading, showTopic }: {
+export default function News({ provider, lay, ids, heading, showTopic, onRead }: {
   provider: NewsProvider; lay: Layout; ids: string[]; heading: string; showTopic: boolean;
+  /** A story was opened: its topic is what the reader just read about. */
+  onRead?: (topicId: string) => void;
 }) {
   const { items, failed, retry } = useArticles(provider, ids);
   const [all, setAll] = useState(false);
@@ -59,7 +61,7 @@ export default function News({ provider, lay, ids, heading, showTopic }: {
           <button type="button" className="at-btn" onClick={retry}>Retry</button>
         </div>
       ) : !items.length ? (
-        <p className="empty">No stories on this yet. Add a nearby topic to see more.</p>
+        <p className="empty">No stories on this yet. Read about a nearby topic to see more.</p>
       ) : (
         <>
           <ul className="news__list">
@@ -77,7 +79,7 @@ export default function News({ provider, lay, ids, heading, showTopic }: {
                     {a.source === SOURCE_DEMO ? <b className="nws__demo">{SOURCE_DEMO}</b> : a.source}
                     <span aria-hidden="true"> · </span>{ago(a.publishedAt)}
                   </span>
-                  <a className="nws__read" href={a.url} target="_blank" rel="noopener"
+                  <a className="nws__read" href={a.url} target="_blank" rel="noopener" onClick={() => onRead?.(a.topicId)}
                     aria-label={`Read “${a.headline}” (opens in a new tab)`}>
                     Read <span aria-hidden="true">↗</span>
                   </a>
