@@ -22,6 +22,24 @@ generated. Set `VITE_API_URL` to call a backend somewhere other than the dev pro
 "Use demo feed" sorts every third card into "in my feed". Keyboard: `←` / `→` sort headlines; `j` / `k`
 (or `↓` / `↑`) step through stories; `Esc` closes the map.
 
+## Demo script
+1. Intro → **Use demo feed** → balls drop by themselves (deterministic: Cybersecurity, Sport, Misinformation, Critical minerals are "in my feed").
+2. **Open your feed →** → first story is from inside the bubble (on-ramp), then two from outside, repeating.
+   Each outside card says *Because you follow X → Y* and how many steps away it is.
+3. **◎ Map** → the Atlas fills the screen as a solar system. **You** (your known topics) are the sun; the 14 subject areas are planets on orbit rings,
+   one ring per step away from what you know. The panel opens on **Where to next**: the three planets one step out, each with the topic that links it to you and why.
+   Click a card (or a planet) → the planet view: what it covers, **how this connects to you** (the route home, step by step), its topics with
+   distance badges (*In your bubble / 1 step / 2 steps / Out of reach*) and the latest stories. Pick a topic → **Add to my bubble**.
+4. **⌂ Home** (or the **Map** crumb) returns to the whole map; **← Back to your feed** (or `Esc`) goes back to the feed, which is re-ranked around the bigger bubble.
+   One bridge strength ("Related") is used everywhere; there are no map settings to fiddle with.
+
+Three levels, always shown as a breadcrumb: **Map › Planet › Topic** (for example *Map › Close to a tech bubble › Semiconductors*; on phones it collapses to "‹ parent").
+
+Keyboard: `←` / `→` sort headlines; `j` / `k` (or `↓` / `↑`) step through stories. In the map, `/` focuses *Find a topic*
+(arrow keys + `Enter` pick a topic from the list, grouped by planet, and open its planet with the topic selected), and `Esc` steps back one
+level: close the list, then the open topic, then the planet (back to the map), then leave the map. Focus moves into the map when it opens, stays inside it, and
+returns to **◎ Map** on close. Without WebGL the same panels work over a flat SVG map.
+
 ## Layout
 ```
 src/data/api.ts           backend calls; loadMap() swaps the backend map into taxonomy + model
@@ -30,7 +48,9 @@ src/data/headlines.ts     onboarding card type, demo-feed rule, bubble fallback
 src/lib/layout.ts         pure: BFS rings, parents, placeArc → target positions
 src/lib/galton.ts         pure: scripted split-board paths, bucket heaps, ball timing
 src/render/               Canvas 2D drawing for the board
-src/screens/              Intro, Onboarding, Home (feed + map sheet), Atlas (React + SVG)
+src/screens/              Intro, Onboarding, Home (feed + map sheet), Atlas (overlay shell + navigation state) + AtlasScene (three.js) / AtlasSvg (fallback)
+src/screens/atlas/        Atlas panels: Overview (where to next), HomePanel, PlanetPanel (route, topics, news), Search, News
+src/screens/atlas.css     Atlas overlay styles (breadcrumb, panels, topic accordion, news cards, legend)
 src/feed/                 news feed module: Feed, NewsCard, rank, providers (backend / test mock)
 ```
 

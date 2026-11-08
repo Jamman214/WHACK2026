@@ -1,0 +1,18 @@
+.redo { position: fixed; top: 8px; right: 12px; z-index: 5; font-size: 13px; }
+.redo__link {
+  min-height: 44px; padding: 0 8px; border: 0; background: none; cursor: pointer;
+  color: var(--muted); font: 500 13px var(--body, inherit); text-decoration: underline; text-underline-offset: 3px;
+}
+.redo__link:hover { color: var(--ink); }
+.redo__ask {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 320px; padding: 8px 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 10px 24px -12px rgb(0 0 0 / 0.4);
+}
+.redo__ask p { margin: 0; flex: 1 1 100%; text-wrap: pretty; }
+.redo__btn {
+  min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  color: var(--ink); cursor: pointer; font: 600 13px var(--body, inherit);
+}
+.redo__btn--go { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.redo :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
