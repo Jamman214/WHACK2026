@@ -83,6 +83,9 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board:not(.intro) .btn kbd { font-size: 13px; }
 .theme-board:not(.intro) .deck .choices { height: 64px; gap: 12px; }
 .theme-board:not(.intro) .summary { font-size: 15px; }
+/* pull the board up under the answer buttons: its top ~7% is empty canvas above the funnel. It never takes clicks, so overlapping them is safe */
+.theme-board:not(.intro) .deck { gap: 8px; }
+.theme-board .board.is-3d { margin-top: -6%; pointer-events: none; }
 .theme-board .board {
   width: 100%; max-width: 1440px; align-self: center; position: relative; background: var(--surface);
   border: 1px solid var(--line); border-radius: 14px; padding: 10px; overflow: hidden;
