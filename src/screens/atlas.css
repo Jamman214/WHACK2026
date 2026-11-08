@@ -330,6 +330,7 @@
   border: 1.5px solid currentColor; font: 700 13px/1 var(--display);
 }
 .atlas .at-modal {
+  pointer-events: auto; /* the overlay layer is pointer-events:none and the dialog would inherit it */
   margin: auto; padding: 0; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto;
   border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--fg);
   box-shadow: 0 24px 60px -16px rgb(0 0 0 / 0.55); font-size: 14px; line-height: 1.45;
