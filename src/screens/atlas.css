@@ -53,6 +53,12 @@
   border: 1px solid color-mix(in srgb, currentColor 55%, transparent); color: inherit;
 }
 .atlas .at-back kbd { margin-left: auto; }
+/* Inside a planet the primary way out is "Back to map"; leaving for the feed steps down to a secondary button. */
+.atlas .at-back--quiet {
+  background: var(--surface); color: var(--fg); box-shadow: none; min-height: 40px; font-size: 14px;
+  border: 1px solid var(--ctl-line);
+}
+
 /* ---- search / combobox ---- */
 .atlas .ov-search { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 12px; min-height: 48px; }
 .atlas .ov-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
