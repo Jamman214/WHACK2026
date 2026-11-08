@@ -124,6 +124,6 @@ export function drawSplitBoard(
   for (const b of state.balls) {
     const p = ballPosition(b.pts, state.now - b.t0);
     ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 7);
-    ctx.fillStyle = tk.accent; ctx.fill();
+    ctx.fillStyle = state.now - b.t0 >= landTime(b.pts) ? (b.seen ? tk.good : tk.bad) : tk.accent; ctx.fill();
   }
 }

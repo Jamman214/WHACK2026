@@ -9,8 +9,8 @@ import {
 } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { BOARD_H, BOARD_W, PEGS, SPLIT, ballPosition, bucketRect, pathDuration, pathEvents, type PathEvent } from "../lib/galton";
 import { type Ball, type BoardTokens, sideGlow } from "./splitBoardCanvas";
+import { BOARD_H, BOARD_W, PEGS, SPLIT, ballPosition, bucketRect, landTime, pathDuration, pathEvents, type PathEvent } from "../lib/galton";
 
 export interface BoardState {
   /** gate tilt in [-1, 1] */
@@ -39,6 +39,7 @@ const CAM_MARGIN = 1.03; // breathing room so tilt, shadows and parallax never c
 const ease = 0.12;
 const PEG_PING_MS = 520; // how long a struck peg keeps wobbling
 const SQUASH_MS = 110;   // impact squash on the ball
+const TINT_MS = 220;     // a landed ball blends from the accent to its bucket colour (green / red)
 
 export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): SplitBoardScene | null {
   let renderer: WebGLRenderer;
@@ -195,17 +196,19 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
 
   // ---- balls
   const ballGeo = track(new SphereGeometry(BALL_R, 28, 20));
-  interface BallMesh { g: Group; end: number; ev: PathEvent[] }
+  interface BallMesh { g: Group; mat: MeshStandardMaterial; end: number; land: number; ev: PathEvent[] }
   const ballMeshes = new Map<Ball, BallMesh>();
   const ballGroup = new Group();
   scene.add(ballGroup);
+  // every ball falls as an accent sphere, then turns green (in my feed) or red (not) as it lands
   const makeBall = (b: Ball) => {
     const g = new Group();
-    const m = new Mesh(ballGeo, mats.accent);
+    const mat = mats.accent.clone();
+    const m = new Mesh(ballGeo, mat);
     m.castShadow = true;
     g.add(m);
     ballGroup.add(g);
-    const bm = { g, end: pathDuration(b.pts), ev: pathEvents(b.pts) };
+    const bm = { g, mat, end: pathDuration(b.pts), land: landTime(b.pts), ev: pathEvents(b.pts) };
     ballMeshes.set(b, bm);
     return bm;
   };
@@ -244,6 +247,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     mats.peg.color.copy(peg);
     mats.accent.color.set(t.accent);
     mats.shadow.opacity = dark ? 0.5 : 0.22;
+    for (const bm of ballMeshes.values()) bm.g.userData.settled = false; // recolour settled balls too
     hemi.intensity = dark ? 1.0 : 1.15;
     hemi.groundColor.set(dark ? 0x3a4150 : 0x9aa2b2);
     sun.intensity = dark ? 1.5 : 1.55;
@@ -309,14 +313,17 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     // sync ball set (reset drops them all)
     const live = new Set(s.balls);
     for (const [b, bm] of ballMeshes)
-      if (!live.has(b)) { ballGroup.remove(bm.g); ballMeshes.delete(b); animating = true; }
+      if (!live.has(b)) { ballGroup.remove(bm.g); bm.mat.dispose(); ballMeshes.delete(b); animating = true; }
 
     pegAge.fill(Infinity);
     for (const b of s.balls) {
       const bm = ballMeshes.get(b) ?? (animating = true, makeBall(b));
       const el = s.now - b.t0;
-      if (el > bm.end + 40 && bm.g.userData.settled) continue;
-      bm.g.userData.settled = el > bm.end;
+      const done = Math.max(bm.end, bm.land + TINT_MS);
+      if (el > done + 40 && bm.g.userData.settled) continue;
+      bm.g.userData.settled = el > done;
+      const tint = motionOk ? Math.min(1, Math.max(0, (el - bm.land) / TINT_MS)) : el >= bm.land ? 1 : 0;
+      bm.mat.color.copy(mats.accent.color).lerp(b.seen ? good : bad, tint);
       const t = Math.max(0, el);
       const p = ballPosition(b.pts, t);
       bm.g.position.set(wx(p.x), wy(p.y), BALL_Z);
@@ -409,6 +416,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
       ro.disconnect();
       geos.forEach((g) => g.dispose());
       Object.values(mats).forEach((m) => m.dispose());
+      for (const bm of ballMeshes.values()) bm.mat.dispose();
       haloTex.dispose();
       pegs.dispose();
       envRT.dispose();
