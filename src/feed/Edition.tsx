@@ -141,7 +141,7 @@ export function Edition({
       if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t?.closest?.(TYPING) || t?.isContentEditable) return;
-      if (e.key === 'm') { e.preventDefault(); openMapAtSel(); return; }
+      if (e.key === 'm') { e.preventDefault(); onOpenMap(); return; }
       const dir = ['j', 'ArrowDown'].includes(e.key) ? 1 : ['k', 'ArrowUp'].includes(e.key) ? -1 : 0;
       if (!dir) return;
       e.preventDefault();
@@ -177,9 +177,11 @@ export function Edition({
                 </div>
               </div>
             </div>
-            <hr />
-            <Reach groups={groups} selectedId={sel?.id} loading={!items} />
           </section>
+
+          <div className="ed__reachcard">
+            <Reach groups={groups} selectedId={sel?.id} loading={!items} />
+          </div>
 
           {!items && <div className="ed__skel" role="status" aria-label="Loading stories" aria-busy="true" />}
 

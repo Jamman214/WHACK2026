@@ -31,39 +31,40 @@ export function Reach({ groups, selectedId, loading }: {
   const counts = groups.map((g) => g.cards.length);
   const n = counts.reduce((a, b) => a + b, 0);
   return (
-    <div className="ed__reach">
+    <section className="ed__reach" aria-label="Today’s reach">
       <div className="ed__reachhead">
         <span className="ed__eyebrow">Today’s reach{loading ? '' : ` · ${n} ${n === 1 ? 'story' : 'stories'}`}</span>
         <p className="ed__reachtitle">{loading ? 'Finding today’s stories' : reachTitle(counts)}</p>
       </div>
-      <div className="ed__reachbody">
-        <svg className="ed__rings" viewBox="0 0 140 140" aria-hidden>
-          {[3, 2, 1].map((ring) => (
-            <circle key={ring} cx={CENTRE} cy={CENTRE} r={RADIUS[ring] + 6}
-              className={`ed__band ed__band--r${ring}${counts[ring] ? ' is-on' : ''}`} />
-          ))}
-          <circle cx={CENTRE} cy={CENTRE} r={BUBBLE_R} className="ed__core" />
-          <text x={CENTRE} y={CENTRE} className="ed__you" textAnchor="middle" dominantBaseline="central">You</text>
-          {groups.flatMap((g) => g.cards.map((c, i) => {
-            const p = at(g.ring, i, g.cards.length);
-            return (
-              <circle key={c.id} r={c.id === selectedId ? 5 : 3.2}
-                className={`ed__dot ed__dot--r${g.ring}${c.id === selectedId ? ' is-on' : ''}`}
-                style={{ transform: `translate(${p.x}px, ${p.y}px)` }} />
-            );
-          }))}
-        </svg>
-        <ul className="ed__legend">
-          {LABEL.map((label, ring) => (
-            <li key={label} className={counts[ring] ? undefined : 'is-empty'}>
-              <i className={`ed__key ed__key--r${ring}`} aria-hidden />
-              <span>{label}</span>
-              <b>{counts[ring]}</b>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <p className="ed__fine">Each dot is a story. Each ring is one more step from the topics you know. The outlined dot is the one you’re reading.</p>
-    </div>
+      <svg className="ed__rings" viewBox="0 0 140 140" aria-hidden>
+        {[3, 2, 1].map((ring) => (
+          <circle key={ring} cx={CENTRE} cy={CENTRE} r={RADIUS[ring] + 6}
+            className={`ed__band ed__band--r${ring}${counts[ring] ? ' is-on' : ''}`} />
+        ))}
+        <circle cx={CENTRE} cy={CENTRE} r={BUBBLE_R} className="ed__core" />
+        <text x={CENTRE} y={CENTRE} className="ed__you" textAnchor="middle" dominantBaseline="central">You</text>
+        {groups.flatMap((g) => g.cards.map((c, i) => {
+          const p = at(g.ring, i, g.cards.length);
+          const on = c.id === selectedId;
+          return (
+            <g key={c.id} className={`ed__pt ed__dot--r${g.ring}${on ? ' is-on' : ''}`}
+              style={{ transform: `translate(${p.x}px, ${p.y}px)` }}>
+              {on && <circle r={8} className="ed__halo" />}
+              <circle r={on ? 4.6 : 3} className="ed__dot" />
+            </g>
+          );
+        }))}
+      </svg>
+      <ul className="ed__legend">
+        {LABEL.map((label, ring) => (
+          <li key={label} className={counts[ring] ? undefined : 'is-empty'}>
+            <i className={`ed__key ed__key--r${ring}`} aria-hidden />
+            <span>{label}</span>
+            <b>{counts[ring]}</b>
+          </li>
+        ))}
+      </ul>
+      <p className="ed__fine">One dot per story. The ringed dot is the one you’re reading.</p>
+    </section>
   );
 }
