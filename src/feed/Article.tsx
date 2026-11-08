@@ -1,10 +1,17 @@
+import 'flag-icons/css/flag-icons.min.css';
+import { countryName, countryOf } from './country';
 import type { FeedCardModel } from './types';
 
 /** One story, kept simple: image, title, description, link out. The route lives in the thread above it. */
 export function Article({ card, onRead }: { card: FeedCardModel; onRead?: (card: FeedCardModel) => void }) {
   const when = ago(card.publishedAt);
+  const country = countryOf(card.url);
   return (
     <article className="ed__article" aria-label={card.headline}>
+      {country && (
+        <span className={`ed__flag fi fi-${country.toLowerCase()}`} role="img"
+          aria-label={`Published in ${countryName(country)}`} title={countryName(country)} />
+      )}
       {card.image && (
         <img className="ed__img" src={card.image} alt="" loading="lazy" onError={(e) => { e.currentTarget.hidden = true; }} />
       )}
