@@ -92,6 +92,8 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
   font: 500 calc(6px * var(--bk)) / 1.2 var(--mono); letter-spacing: 0.02em; white-space: nowrap;
   color: color-mix(in srgb, var(--ink), var(--muted) 35%);
 }
+.theme-board .board-card.s { align-items: flex-end; text-align: right; }
+.theme-board .board-card.s .num { transform-origin: 100% 50%; }
 .theme-board .board-card.s { background: color-mix(in srgb, var(--good) var(--tint-pct), var(--tint-base)); }
 .theme-board .board-card.u { background: color-mix(in srgb, var(--bad) var(--tint-pct), var(--tint-base)); }
 .theme-board .board-card .num {
