@@ -4,6 +4,7 @@ The bubble is always rebuilt from scratch against the current topic map, so it s
 re-clustering: the history only mentions article ids, never cluster ids.
 """
 from collections import defaultdict
+from math import exp
 from statistics import mean
 
 from fastapi import APIRouter
@@ -14,8 +15,9 @@ from store import Store, get_store
 router = APIRouter(tags=["bubble"])
 
 KNOWN_THRESHOLD = 0.5
-INFERRED_WEIGHT = 0.5  # untested topics in a group get half the group's tested average...
-INFERRED_CAP = 0.45  # ...but never reach KNOWN_THRESHOLD: only a right swipe or a map add counts as known
+SPREAD_SIGMA = 0.1  # gaussian width in cosine distance (1 - link w)
+SPREAD_PER_SWIPE = 0.45  # peak bump per swipe; < KNOWN_THRESHOLD so it takes 2+ swipes to pull a neighbour in
+assert SPREAD_PER_SWIPE < KNOWN_THRESHOLD
 
 
 def latest_swipes(history: list[Swipe], store: Store) -> dict[str, str]:
@@ -37,14 +39,15 @@ def compute_bubble(history: list[Swipe], store: Store, topics: dict[str, bool] |
         votes[store.articles[article_id].topicId].append(1.0 if direction == "right" else 0.0)
     scores = {t: mean(v) for t, v in votes.items()}
 
-    # 2. Topics in the same group that weren't tested: infer closeness from the group's tested topics.
-    #    Liking one cybersecurity card shouldn't claim the user knows AI, so inferred scores stay outside the bubble.
-    tested_groups = {store.topics[t].groupId for t in scores}
-    for gid in tested_groups:
-        group_topics = store.topics_in(gid)
-        group_avg = mean(scores[t.id] for t in group_topics if t.id in scores)
-        for t in group_topics:
-            scores.setdefault(t.id, min(group_avg * INFERRED_WEIGHT, INFERRED_CAP))
+    # 2. Untested neighbours on the similarity graph: each swipe adds (right) or takes away (left)
+    #    a gaussian of the cosine distance, so knowing a topic implies knowing very similar ones.
+    spread: dict[str, float] = defaultdict(float)
+    for link in store.links:
+        k = SPREAD_PER_SWIPE * exp(-(((1 - link.w) / SPREAD_SIGMA) ** 2) / 2)
+        for src, dst in ((link.a, link.b), (link.b, link.a)):
+            if dst not in scores and dst in store.topics:
+                spread[dst] += k * sum(2 * v - 1 for v in votes.get(src, []))
+    scores.update({t: min(max(s, 0.0), 1.0) for t, s in spread.items() if s != 0})
 
     # 3. Explicit adds/removes from the map override everything (unknown ids dropped).
     for t, inside in (topics or {}).items():
