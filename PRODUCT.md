@@ -22,7 +22,7 @@ The idea started out covering social events as well as news. It narrowed to news
 Engagement feeds keep you inside what you already like. This product shows where your knowledge stops and how far away new topics are, and it gives an explained route ("Because you follow X → Y") so you can grow your bubble one step at a time.
 
 ## Operating Context
-- Flow: Intro → onboarding Galton board (sort 18 headlines as "in my feed / not in my feed", which defines the bubble) → news feed (the main screen, one card per screen, snap scroll) → Topic Atlas (a full-screen solar-system map over the feed: "You" at the centre, 14 subject planets on rings by bridge distance, and topics as moons).
+- Flow: Intro → onboarding Galton board (sort 18 headlines as "in my feed / not in my feed", which defines the bubble) → today's edition (the main screen: a date and a capped, distance-grouped list on the left; on the right the thread from what you follow to the story, then the story itself) → Topic Atlas (a full-screen solar-system map over the feed: "You" at the centre, 14 subject planets on rings by bridge distance, and topics as moons).
 - Three navigation levels, always shown as a breadcrumb: Map › Planet › Topic.
 - Core concepts to keep intact: *home* (what you know), *distance* (steps out to new knowledge), *building out your bubble* (step by step).
 

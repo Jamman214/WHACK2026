@@ -1,7 +1,7 @@
 # WHACK 2026 — "anti-Instagram" demo
 
-Onboarding (split Galton board) → **news feed** (primary) with the Topic Atlas (radial bubble map) as a
-secondary sheet. Desktop web for the demo; the feed is one-card-per-screen snap scroll so it can become a mobile PWA.
+Onboarding (split Galton board) → **today's edition** (primary: a date + stories grouped by distance on the left, the thread and the
+story on the right) with the Topic Atlas (radial bubble map) as a secondary sheet. Desktop web for the demo.
 Brief and reference prototypes: [`whack-demo/`](whack-demo/PROMPT.md).
 
 ```sh
@@ -48,10 +48,10 @@ src/data/headlines.ts     onboarding card type, demo-feed rule, bubble fallback
 src/lib/layout.ts         pure: BFS rings, parents, placeArc → target positions
 src/lib/galton.ts         pure: scripted split-board paths, bucket heaps, ball timing
 src/render/               Canvas 2D drawing for the board
-src/screens/              Intro, Onboarding, Home (feed + map sheet), Atlas (overlay shell + navigation state) + AtlasScene (three.js) / AtlasSvg (fallback)
+src/screens/              Intro, Onboarding, Home (edition + map sheet), Atlas (overlay shell + navigation state) + AtlasScene (three.js) / AtlasSvg (fallback)
 src/screens/atlas/        Atlas panels: Overview (where to next), HomePanel, PlanetPanel (route, topics, news), Search, News
 src/screens/atlas.css     Atlas overlay styles (breadcrumb, panels, topic accordion, news cards, legend)
-src/feed/                 news feed module: Feed, NewsCard, rank, providers (backend / test mock)
+src/feed/                 today's edition module: Edition, Thread, Article, rank (mix + daily cap), providers (backend / test mock)
 ```
 
 ## Moving to Three.js
