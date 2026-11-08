@@ -87,6 +87,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
   const mobile = useMedia("(max-width: 767px)");
   const [panelOpen, setPanelOpen] = useState(() => !matchMedia("(max-width: 767px)").matches || !!focusSel);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [announce, setAnnounce] = useState("");
   const [toast, setToast] = useState<{ id: number; message: string; prev: string[] } | null>(null);
   const toastId = useRef(0);
@@ -221,21 +222,22 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
 
   // --- Esc: close search, clear the topic, leave the planet, and only then leave the map ---------------
   // Capture phase + stopPropagation so Feed's own Esc handler doesn't also close the sheet.
-  const st = useRef({ sel, planet, searchOpen, onClose: onClose ? close : undefined, depth });
-  st.current = { sel, planet, searchOpen, onClose: onClose ? close : undefined, depth };
+  const st = useRef({ sel, planet, searchOpen, helpOpen, onClose: onClose ? close : undefined, depth });
+  st.current = { sel, planet, searchOpen, helpOpen, onClose: onClose ? close : undefined, depth };
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.key === "Escape") {
         const s = st.current;
-        if (s.searchOpen) setSearchOpen(false);
+        if (s.helpOpen) setHelpOpen(false);
+        else if (s.searchOpen) setSearchOpen(false);
         else if (s.sel) { setSel(null); setAnnounce("Topic closed."); toPanel(); }
         else if (s.planet) { goMap(); toPanel(); }
         else if (s.onClose) s.onClose();
         else return;
         e.preventDefault();
         e.stopPropagation();
-      } else if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !t?.closest("input,textarea,select,[contenteditable]")) {
+      } else if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !t?.closest("input,textarea,select,[contenteditable]") && !st.current.helpOpen) {
         e.preventDefault();
         searchRef.current?.focus();
         setSearchOpen(true);
@@ -347,20 +349,18 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
               : planet === "home" ? <HomePanel {...ctx} />
               : <PlanetPanel {...ctx} id={planet} sel={sel} />}
             <div className="side__foot">
-              <Legend />
-              <p className="note">
-                Distance is the fewest “Related” links between a topic and your bubble. Each planet shows only its strongest route
-                back to you. Links are estimated by hand for now, so treat distances as a guide.
-              </p>
+              <button type="button" className="at-btn at-helpbtn at-helpbtn--wide" aria-haspopup="dialog" onClick={() => setHelpOpen(true)}>
+                <span className="at-helpbtn__q" aria-hidden="true">?</span> How to read the map
+              </button>
             </div>
           </div>
         </aside>
 
-        {/* bottom-left (desktop): legend + gesture hint */}
-        <div className="ov ov-legend">
-          <Legend />
-          <p className="hint" aria-hidden="true">Drag to orbit · scroll to zoom · click a planet</p>
-        </div>
+        {/* bottom-left (desktop): the map key lives behind a ? button */}
+        <button type="button" className="ov at-helpbtn at-helpbtn--round" aria-haspopup="dialog" aria-label="How to read the map" onClick={() => setHelpOpen(true)}>
+          <span aria-hidden="true">?</span>
+        </button>
+        {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
 
         <p id="atlas-kbd" className="sr-only">
           Keyboard: press slash to find a topic. In the topic list use the arrow keys and Enter to open its planet.
@@ -421,6 +421,35 @@ function Crumbs({ planet, sel, mobile, goMap, leaveTopic }: {
         ))}
       </ol>
     </nav>
+  );
+}
+
+/** Modal "how to read the map": the key, the gestures and what distance means. Native <dialog> gives the focus trap and inert background. */
+function HelpDialog({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const d = ref.current;
+    const opener = document.activeElement as HTMLElement | null;
+    d?.showModal();
+    return () => { d?.close(); opener?.focus?.(); };
+  }, []);
+  return (
+    <dialog ref={ref} className="at-modal" aria-labelledby={titleId} onCancel={(e) => { e.preventDefault(); onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="at-modal__card">
+        <header className="at-modal__head">
+          <h2 id={titleId}>How to read the map</h2>
+          <button type="button" className="at-btn at-modal__x" onClick={onClose} aria-label="Close">✕</button>
+        </header>
+        <Legend />
+        <p className="at-modal__hint">Drag to orbit · scroll to zoom · click a planet</p>
+        <p className="note">
+          Distance is the fewest “Related” links between a topic and your bubble. Each planet shows only its strongest route
+          back to you. Links are estimated by hand for now, so treat distances as a guide.
+        </p>
+      </div>
+    </dialog>
   );
 }
 
