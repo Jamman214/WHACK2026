@@ -24,7 +24,7 @@ from utils import to_iso
 HERE = Path(__file__).resolve().parent
 DEFAULT_DB = HERE.parent / "data" / "news.db"  # where data_aquisition/db.py writes it
 OUT = HERE / "data" / "clusters.json"
-RELATED_PER_TOPIC = 3
+LINK_MIN_SIM = 0.85  # topic-centre cosine; ~1.3k links, 18% across groups (bge-small, 650 topics)
 
 
 def article_id(url: str) -> str:
@@ -69,13 +69,19 @@ def export(db_path: Path) -> dict:
     C = np.stack([centres[s] for s in sub_ids])
     sim = C @ C.T
     np.fill_diagonal(sim, -np.inf)
-    related = {s: [f"t-{sub_ids[j]}" for j in np.argsort(-sim[i])[:RELATED_PER_TOPIC]]
-               for i, s in enumerate(sub_ids)}
-    # Same neighbours as weighted undirected links (like the frontend's {a, b, w}); one per pair.
-    pairs = {tuple(sorted((i, int(j)))) for i in range(len(sub_ids))
-             for j in np.argsort(-sim[i])[:RELATED_PER_TOPIC]}
+    # Link every pair above LINK_MIN_SIM, plus each topic's nearest neighbour so none is isolated.
+    above = {(i, int(j)) for i, j in zip(*np.nonzero(sim >= LINK_MIN_SIM)) if i < j}
+    nearest = {tuple(sorted((i, int(np.argmax(sim[i]))))) for i in range(len(sub_ids))}
+    pairs = sorted(above | nearest)
     links = [{"a": f"t-{sub_ids[i]}", "b": f"t-{sub_ids[j]}", "w": round(float(sim[i, j]), 3)}
-             for i, j in sorted(pairs)]
+             for i, j in pairs]
+    # related = the same linked topics, closest first, so it always agrees with links.
+    neighbours = {i: [] for i in range(len(sub_ids))}
+    for i, j in pairs:
+        neighbours[i].append(j)
+        neighbours[j].append(i)
+    related = {sub_ids[i]: [f"t-{sub_ids[j]}" for j in sorted(ns, key=lambda j: -sim[i, j])]
+               for i, ns in neighbours.items()}
 
     used_parents = sorted({subs[s][0] for s in sub_ids})
     groups = [{"id": f"g-{p}", "label": parents.get(p, f"Topic {p}"), "description": None}
