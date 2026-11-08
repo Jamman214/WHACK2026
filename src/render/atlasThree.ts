@@ -1510,7 +1510,7 @@ export class AtlasThree {
       pl.rpx = (pl.p.r * U * this.pxScale) / Math.max(1, Math.sqrt(Math.max(1, pl.dist * pl.dist - (pl.p.r * U) ** 2)));
       pl.shown = z < 1 && z > -1;
     }
-    const discBoxes: Box[] = this.planets.filter((pl) => pl.shown && mode !== "planet").map((pl) => ({ x0: pl.px - pl.rpx, y0: pl.py - pl.rpx, x1: pl.px + pl.rpx, y1: pl.py + pl.rpx }));
+    const discBoxes: Box[] = this.planets.filter((pl) => pl.shown && mode === "overview").map((pl) => ({ x0: pl.px - pl.rpx, y0: pl.py - pl.rpx, x1: pl.px + pl.rpx, y1: pl.py + pl.rpx }));
     if (mode === "overview") boxes.push({ x0: hp.x - hrpx, y0: hp.y - hrpx, x1: hp.x + hrpx, y1: hp.y + hrpx });
     const hitDisc = (x0: number, y0: number, x1: number, y1: number, skip: Box | null) => {
       for (const b of discBoxes) if (b !== skip && x0 < b.x1 && x1 > b.x0 && y0 < b.y1 && y1 > b.y0) return true;
@@ -1544,7 +1544,7 @@ export class AtlasThree {
       const w = pl.w, h = pl.h;
       let placed: { x0: number; y0: number } | null = null;
       const forced = pl.el === active || pl.idx === this.hoverPlanet;
-      if (mode !== "planet" && pl.shown) {
+      if (mode === "overview" && pl.shown) {
         const gap = 5;
         // outward from the sun first (labels sit outside the system, not between planets), then below / above / sides
         let ux = pl.px - hp.x, uy = pl.py - hp.y;
@@ -1570,7 +1570,7 @@ export class AtlasThree {
         }
         if (!placed && forced) placed = { x0: clamp(Math.round(pl.px - w / 2), vr.x0, Math.max(vr.x0, vr.x1 - w)), y0: clamp(Math.round(pl.py + pl.rpx + 5), vr.y0, Math.max(vr.y0, vr.y1 - h)) };
       }
-      const modeOff = mode === "planet";
+      const modeOff = mode !== "overview";
       pl.el.hidden = modeOff && pl.el !== active;
       const on = !!placed && !modeOff;
       if (placed && on) boxes.push({ x0: placed.x0, y0: placed.y0, x1: placed.x0 + w, y1: placed.y0 + h });

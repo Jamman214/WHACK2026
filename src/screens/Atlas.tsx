@@ -234,6 +234,8 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
       const t = e.target as HTMLElement | null;
       if (e.key === "Escape") {
         const s = st.current;
+        // another modal (the news list) is open: let its own dialog close on this Esc, but don't also go up a level
+        if (!s.helpOpen && document.querySelector("dialog[open]")) { e.stopPropagation(); return; }
         if (s.helpOpen) setHelpOpen(false);
         else if (s.searchOpen) setSearchOpen(false);
         else if (s.sel) { setSel(null); setAnnounce("Topic closed."); toPanel(); }
@@ -335,6 +337,14 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
                 <p className="sub">You are the sun. The further out a planet orbits, the further it is from what you know.</p>
               </div>
             </section>
+          )}
+
+          {compact && (
+            <button type="button" className="at-back at-back--compact" onClick={() => { goMap(); toPanel(); }}>
+              <span aria-hidden="true" className="at-back__arrow">←</span>
+              <span>Back to map</span>
+              {!sel && <kbd aria-hidden="true">Esc</kbd>}
+            </button>
           )}
 
           <div className="ov ov-crumb">
