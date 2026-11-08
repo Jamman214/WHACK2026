@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { nextOnboarding, type Swipe } from "../data/api";
 import { type Headline, bubbleFrom, demoSeen } from "../data/headlines";
 import { TOPIC_BY_ID } from "../data/taxonomy";
-import { BOARD_W, createSplitBoard } from "../lib/galton";
+import { BOARD_W, createSplitBoard, landTime } from "../lib/galton";
 import { type Ball, drawSplitBoard, readTokens, sizeCanvas } from "../render/splitBoardCanvas";
+import { type SplitBoardScene, createSplitBoardScene } from "../render/splitBoardThree";
 
 const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -15,7 +16,9 @@ interface Props {
 
 export default function Onboarding({ autoDemo = false, onDone }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<SplitBoardScene | null>(null);
+  const fallbackRef = useRef<HTMLCanvasElement | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const mapBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -23,6 +26,8 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
   const board = useRef(createSplitBoard());
   const balls = useRef<Ball[]>([]);
   const gate = useRef({ flip: 0, target: 0 });
+  // counts shown on the board and in the summary: a ball counts when it lands, not when it spawns
+  const landed = useRef({ seen: 0, unseen: 0 });
   const timers = useRef<number[]>([]);
   const morphs = useRef(new Set<{ anim: Animation; el: HTMLElement }>());
   const idxRef = useRef(0);
@@ -46,7 +51,6 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
   const spawn = useCallback((isSeen: boolean) => {
     gate.current.target = isSeen ? -1 : 1;
     balls.current.push({ pts: board.current.path(isSeen), seen: isSeen, t0: performance.now() });
-    setCounts({ ...board.current.counts });
   }, []);
 
   // These only touch refs and stable setters, so any render's copy is safe to call.
@@ -82,18 +86,23 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
     const h = record(isSeen);
     if (!h) return;
 
-    const card = cardRef.current, cv = canvasRef.current, root = rootRef.current;
-    if (reduceMotion() || !card || !cv || !root) { spawn(isSeen); return; }
+    const card = cardRef.current, bd = boardRef.current, root = rootRef.current;
+    if (reduceMotion() || !card || !bd || !root) { spawn(isSeen); return; }
 
     // card morphs into a ball and drops into the funnel
-    const r = card.getBoundingClientRect(), cr = cv.getBoundingClientRect(), s = cr.width / BOARD_W;
+    const r = card.getBoundingClientRect();
     const tk = readTokens(root);
     const m = document.createElement("div");
     m.className = "morph";
     m.textContent = h.headline;
     Object.assign(m.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px", borderRadius: "14px" });
     root.appendChild(m);
-    const tx = cr.left + (BOARD_W / 2) * s - 7, ty = cr.top + 6 * s - 7;
+    // funnel mouth in viewport px: projected through the 3D camera, or scaled from the 2D canvas
+    const mouth = sceneRef.current?.boardToClient(BOARD_W / 2, 6) ?? (() => {
+      const cr = (fallbackRef.current ?? bd).getBoundingClientRect(), s = cr.width / BOARD_W;
+      return { x: cr.left + (BOARD_W / 2) * s, y: cr.top + 6 * s };
+    })();
+    const tx = mouth.x - 7, ty = mouth.y - 7;
     const ballBg = isSeen ? tk.accent : getComputedStyle(root).getPropertyValue("--surface");
     const anim = m.animate(
       [
@@ -124,6 +133,7 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
     clearTimers();
     balls.current = [];
     board.current.reset();
+    landed.current = { seen: 0, unseen: 0 };
     gate.current.target = 0;
     run.current++;
     demo.current = false;
@@ -140,25 +150,53 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
   // first card; the cleanup drops the reply if StrictMode remounts or the screen closes
   useEffect(() => { reset(); return () => { run.current++; }; }, []);
 
-  // render loop + canvas sizing
+  // render loop: Three.js scene, with the Canvas 2D renderer as a fallback when WebGL is unavailable
   useEffect(() => {
-    const cv = canvasRef.current!, root = rootRef.current!;
-    sizeCanvas(cv);
+    const bd = boardRef.current!, root = rootRef.current!;
     let tk = readTokens(root);
-    const onResize = () => sizeCanvas(cv);
+    const scene = createSplitBoardScene(bd, tk);
+    sceneRef.current = scene;
+    let cv: HTMLCanvasElement | null = null;
+    if (!scene) {
+      cv = document.createElement("canvas");
+      bd.appendChild(cv);
+      fallbackRef.current = cv;
+      sizeCanvas(cv);
+    }
+    const onResize = () => { if (cv) sizeCanvas(cv); };
     const mq = matchMedia("(prefers-color-scheme: dark)");
-    const onScheme = () => { tk = readTokens(root); };
+    const onScheme = () => { tk = readTokens(root); scene?.setTokens(tk); };
     addEventListener("resize", onResize);
     mq.addEventListener("change", onScheme);
     let raf = 0;
     const frame = (now: number) => {
       const g = gate.current;
       g.flip += (g.target - g.flip) * 0.18;
-      drawSplitBoard(cv.getContext("2d")!, tk, { flip: g.flip, counts: board.current.counts, balls: balls.current, now });
+      // a ball counts the moment it first touches its bucket floor
+      const L = landed.current;
+      let bumped = false;
+      for (const b of balls.current)
+        if (!b.landed && now - b.t0 >= landTime(b.pts)) {
+          b.landed = true;
+          L[b.seen ? "seen" : "unseen"]++;
+          bumped = true;
+        }
+      if (bumped) setCounts({ ...L });
+      const st = { flip: g.flip, counts: L, balls: balls.current, now };
+      if (scene) scene.render(st);
+      else drawSplitBoard(cv!.getContext("2d")!, tk, st);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); removeEventListener("resize", onResize); mq.removeEventListener("change", onScheme); };
+    return () => {
+      cancelAnimationFrame(raf);
+      removeEventListener("resize", onResize);
+      mq.removeEventListener("change", onScheme);
+      scene?.dispose();
+      cv?.remove();
+      sceneRef.current = null;
+      fallbackRef.current = null;
+    };
   }, []);
 
   // keyboard: ← in my feed, → not in my feed
@@ -204,14 +242,8 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
         </p>
 
         <div className="deck">
-          <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "")} ref={cardRef} key={idx}>
-            {done ? (
-              <>
-                <div className="cat">All {served} sorted</div>
-                <div className="hl">That's your bubble, sorted. Next stop: the stories outside it.</div>
-                <div className="meta">Press Reset to run it again</div>
-              </>
-            ) : h && (
+          <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "") + (done ? " gone" : "")} ref={cardRef} key={idx} aria-hidden={done || undefined}>
+            {done || !h ? null : (
               <>
                 <div className="cat">{TOPIC_BY_ID[h.topicId].name}</div>
                 <div className="hl">{h.headline}</div>
@@ -233,13 +265,9 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
           </div>
         </div>
 
-        <div className="board"><canvas ref={canvasRef} /></div>
+        <div className="board" ref={boardRef} />
 
         <div className="foot">
-          <div className="legend">
-            <span><span className="dot s" />In my feed</span>
-            <span><span className="dot u" />Not in my feed</span>
-          </div>
           <div className="summary" aria-live="polite">{summary}</div>
           <div className="choices">
             <button className="btn ghost" onClick={playDemo} disabled={done}>Play demo feed</button>

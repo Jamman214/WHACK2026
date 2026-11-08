@@ -75,9 +75,11 @@ export default function Home({ initialBubble, history, onRedo }: Props) {
           onChipClick={onChipClick}
           mapOpen={map.open}
           onMapOpenChange={onMapOpenChange}
+          mapHasOwnClose
           map={
             <div className="home__map">
-              <Atlas bubble={bubble} onBubbleChange={changeBubble} initialBubble={initialBubble} onRedo={onRedo} focus={map.focus} />
+              <Atlas bubble={bubble} onBubbleChange={changeBubble} initialBubble={initialBubble} onRedo={onRedo} focus={map.focus}
+                provider={provider} onClose={() => setMap({ open: false })} />
             </div>
           }
         />

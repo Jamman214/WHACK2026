@@ -1,0 +1,62 @@
+/* Scene-internal styles for the 3D Topic Atlas (src/render/atlasThree.ts). Everything is driven by the
+   .theme-atlas tokens (plus --sun from the overlay), so light and dark need no extra rules. */
+.as-host { position: absolute; inset: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.as-host:active { cursor: grabbing; }
+.as-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.as-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+
+/* labels: pills on a near-opaque --surface so text keeps AA contrast over planets, routes and stars */
+.as-topic, .as-planet, .as-home, .as-orbit {
+  position: absolute; left: 0; top: 0; margin: 0; white-space: nowrap; will-change: transform, opacity;
+  background: color-mix(in srgb, var(--surface) 95%, transparent); color: var(--fg);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  opacity: var(--a, 1); transition: opacity 0.18s ease;
+}
+.as-topic {
+  --k: var(--as-k, 1);
+  font: 500 calc(14px * var(--k)) / 1.25 var(--body); padding: 3px 10px 3px 9px;
+  border: 1px solid var(--line); border-radius: 8px;
+  cursor: pointer; pointer-events: auto; box-shadow: 0 1px 3px color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.as-topic:hover { border-color: var(--fg);  }
+.as-topic.is-bubble { font-weight: 600; border-color: var(--sun, var(--accent)); }
+.as-topic.is-sel { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 700; }
+
+.as-planet {
+  --k: var(--as-k, 1);
+  display: inline-grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px;
+  padding: 4px 13px 4px 10px; border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; pointer-events: auto; text-align: left;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.as-planet i { grid-row: span 2; width: 11px; height: 11px; border-radius: 50%; background: var(--cat); box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--cat); }
+.as-planet .as-nm { font: 700 calc(13.5px * var(--k)) / 1.2 var(--display); letter-spacing: -0.005em; }
+.as-planet small { font: 500 calc(11px * var(--k)) / 1.25 var(--mono); color: var(--muted); letter-spacing: 0.01em; }
+.as-planet:hover { border-color: var(--cat); }
+.as-planet.is-complete { border-color: color-mix(in srgb, var(--sun, var(--accent)) 70%, var(--line)); }
+.as-planet.is-far { border-style: dashed; }
+.as-host[data-compact] .as-planet small { display: none; }
+.as-host[data-compact] .as-planet i { grid-row: auto; }
+.as-host[data-compact] .as-planet { padding: 4px 11px 4px 9px; }
+.as-host[data-narrow] .as-planet { padding: 3px 9px 3px 8px; column-gap: 6px; }
+.as-host[data-narrow] .as-planet .as-nm { font-size: 12px; }
+.as-host[data-narrow] .as-planet small { display: none; }
+.as-host[data-narrow] .as-planet i { grid-row: auto; width: 9px; height: 9px; }
+
+.as-home {
+  font: 700 calc(15px * var(--as-k, 1)) / 1.2 var(--display); padding: 5px 14px; border-radius: 999px;
+  border: 2px solid var(--sun, var(--accent)); cursor: pointer; pointer-events: auto;
+}
+.as-home:hover { background: color-mix(in srgb, var(--sun, var(--accent)) 14%, var(--surface)); }
+
+/* orbit ruler labels: small, quiet, never interactive */
+.as-orbit {
+  font: 600 calc(11px * var(--as-k, 1)) / 1 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted);
+  padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; pointer-events: none;
+}
+
+.as-topic.is-off, .as-planet.is-off, .as-home.is-off, .as-orbit.is-off { opacity: 0; pointer-events: none; }
+.as-topic:focus, .as-planet:focus, .as-home:focus { outline: none; }
+.as-topic:focus-visible, .as-planet:focus-visible, .as-home:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; opacity: 1; z-index: 1000 !important; }
+.as-topic:focus-visible.is-off, .as-planet:focus-visible.is-off, .as-home:focus-visible.is-off { opacity: 1; pointer-events: auto; }
+
+@media (prefers-reduced-motion: reduce) { .as-topic, .as-planet, .as-home, .as-orbit { transition: none; } }

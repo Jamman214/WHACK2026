@@ -12,3 +12,7 @@ dist
 .vite
 .env.local
 .env*.local
+.claude
+skills-lock.json
+# Impeccable design tool state (critique snapshots, config)
+.impeccable/
