@@ -14,7 +14,8 @@ from store import Store, get_store
 router = APIRouter(tags=["bubble"])
 
 KNOWN_THRESHOLD = 0.5
-INFERRED_WEIGHT = 0.5  # untested topics in a group get half the group's tested average
+INFERRED_WEIGHT = 0.5  # untested topics in a group get half the group's tested average...
+INFERRED_CAP = 0.45  # ...but never reach KNOWN_THRESHOLD: only a right swipe or a map add counts as known
 
 
 def latest_swipes(history: list[Swipe], store: Store) -> dict[str, str]:
@@ -36,13 +37,14 @@ def compute_bubble(history: list[Swipe], store: Store, topics: dict[str, bool] |
         votes[store.articles[article_id].topicId].append(1.0 if direction == "right" else 0.0)
     scores = {t: mean(v) for t, v in votes.items()}
 
-    # 2. Topics in the same group that weren't tested: infer from the group's tested topics.
+    # 2. Topics in the same group that weren't tested: infer closeness from the group's tested topics.
+    #    Liking one cybersecurity card shouldn't claim the user knows AI, so inferred scores stay outside the bubble.
     tested_groups = {store.topics[t].groupId for t in scores}
     for gid in tested_groups:
         group_topics = store.topics_in(gid)
         group_avg = mean(scores[t.id] for t in group_topics if t.id in scores)
         for t in group_topics:
-            scores.setdefault(t.id, group_avg * INFERRED_WEIGHT)
+            scores.setdefault(t.id, min(group_avg * INFERRED_WEIGHT, INFERRED_CAP))
 
     # 3. Explicit adds/removes from the map override everything (unknown ids dropped).
     for t, inside in (topics or {}).items():
