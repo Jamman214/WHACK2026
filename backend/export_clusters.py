@@ -1,4 +1,4 @@
-"""Turn the data pipeline's database (data_aquisition: EmbeddingGemma + 2-level clustering)
+"""Turn the data pipeline's database (data_aquisition: bge-small embeddings + 2-level clustering)
 into data/clusters.json, the file the onboarding API reads.
 
     python export_clusters.py [--db ../data/news.db]
@@ -52,7 +52,7 @@ def export(db_path: Path) -> dict:
     sub_of = np.array([r[8] for r in rows])
 
     # Centrality: cosine similarity to the subtopic's centre, rescaled to 0..1 inside each subtopic
-    # (Gemma similarities all sit in a narrow band, so raw values would look identical).
+    # (embedding similarities all sit in a narrow band, so raw values would look identical).
     centrality = np.zeros(len(rows))
     centres = {}
     for s in np.unique(sub_of):
@@ -71,6 +71,11 @@ def export(db_path: Path) -> dict:
     np.fill_diagonal(sim, -np.inf)
     related = {s: [f"t-{sub_ids[j]}" for j in np.argsort(-sim[i])[:RELATED_PER_TOPIC]]
                for i, s in enumerate(sub_ids)}
+    # Same neighbours as weighted undirected links (like the frontend's {a, b, w}); one per pair.
+    pairs = {tuple(sorted((i, int(j)))) for i in range(len(sub_ids))
+             for j in np.argsort(-sim[i])[:RELATED_PER_TOPIC]}
+    links = [{"a": f"t-{sub_ids[i]}", "b": f"t-{sub_ids[j]}", "w": round(float(sim[i, j]), 3)}
+             for i, j in sorted(pairs)]
 
     used_parents = sorted({subs[s][0] for s in sub_ids})
     groups = [{"id": f"g-{p}", "label": parents.get(p, f"Topic {p}"), "description": None}
@@ -100,7 +105,7 @@ def export(db_path: Path) -> dict:
         })
 
     now = datetime.now(timezone.utc)
-    return {"version": f"embeddings-{now:%Y%m%d-%H%M%S}", "groups": groups, "topics": topics,
+    return {"version": f"embeddings-{now:%Y%m%d-%H%M%S}", "groups": groups, "topics": topics, "links": links,
             "articles": articles}
 
 

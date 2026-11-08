@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from schemas import Group, StoredArticle, Topic
+from schemas import Group, Link, StoredArticle, Topic
 
 DATA_PATH = Path(os.getenv("CLUSTERS_PATH") or Path(__file__).parent / "data" / "clusters.json")
 
@@ -22,6 +22,7 @@ class Store:
         self.groups = {g["id"]: Group(**g) for g in raw["groups"]}
         self.topics = {t["id"]: Topic(**t) for t in raw["topics"]}
         self.articles = {a["id"]: StoredArticle(**a) for a in raw["articles"]}
+        self.links = [Link(**l) for l in raw.get("links", [])]
 
         for t in self.topics.values():
             if t.groupId not in self.groups:

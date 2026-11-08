@@ -50,10 +50,17 @@ class Topic(BaseModel):
     related: list[str] = []  # ids of nearby topics (used later for bridges)
 
 
+class Link(BaseModel):
+    a: str  # topic id
+    b: str  # topic id
+    w: float  # cosine similarity of the two topics' centres (higher = closer)
+
+
 class TopicMap(BaseModel):
     version: str
     groups: list[Group]
     topics: list[Topic]
+    links: list[Link] = []
 
 
 # ---------- Swipes, bubble, onboarding ----------

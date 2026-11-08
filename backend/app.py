@@ -11,6 +11,7 @@ load_dotenv()  # before importing store, so CLUSTERS_PATH from .env is picked up
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
+from catalog import router as catalog_router  # noqa: E402
 from onboarding import router as onboarding_router  # noqa: E402
 from store import get_store  # noqa: E402
 
@@ -24,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(onboarding_router)
+app.include_router(catalog_router)
 
 
 @app.get("/")
