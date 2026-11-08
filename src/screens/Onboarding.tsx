@@ -234,10 +234,6 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
         <div className="board" ref={boardRef} />
 
         <div className="foot">
-          <div className="legend">
-            <span><span className="dot s" />In my feed</span>
-            <span><span className="dot u" />Not in my feed</span>
-          </div>
           <div className="summary" aria-live="polite">{summary}</div>
           <div className="choices">
             <button className="btn ghost" onClick={playDemo} disabled={done}>Play demo feed</button>

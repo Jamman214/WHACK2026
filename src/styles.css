@@ -103,10 +103,6 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
 .theme-board .summary { min-height: 3em; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
 .theme-board .summary b { color: var(--ink); font-weight: 500; }
-.theme-board .legend { display: flex; gap: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
-.theme-board .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 6px; }
-.theme-board .dot.s { background: var(--accent); }
-.theme-board .dot.u { border: 2px solid var(--accent); }
 .morph {
   position: fixed; z-index: 20; background: var(--surface); border: 1px solid var(--line); overflow: hidden; pointer-events: none;
   font-family: var(--display); font-size: 21px; padding: 18px 22px; line-height: 1.25; color: var(--ink);
