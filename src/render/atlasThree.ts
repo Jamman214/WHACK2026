@@ -537,6 +537,7 @@ export class AtlasThree {
         uSunPos: { value: new THREE.Vector3() }, uSunCol: { value: new THREE.Color() }, uKeyDir: { value: new THREE.Vector3(0, 1, 0) },
         uKeyI: { value: 0 }, uRimI: { value: 0 }, uSunI: { value: 1 }, uShadeLo: { value: 0.5 }, uGrid: { value: 0.3 },
         uSat: { value: 1 }, uBright: { value: 1 }, uFade: { value: 0 }, uDim: { value: 1 }, uRim: { value: 0.3 },
+        uGold: { value: 0 }, uGoldBody: { value: new THREE.Color() }, uGoldTint: { value: new THREE.Color() },
       }]),
       vertexShader: PLANET_VERT, fragmentShader: PLANET_FRAG, fog: true,
     }));
@@ -640,6 +641,8 @@ export class AtlasThree {
       const u = (pl.body.material as THREE.ShaderMaterial).uniforms;
       u.uBody.value.copy(surface).lerp(col, this.dark ? 0.46 : 0.62);
       u.uTint.value.copy(col);
+      u.uGoldBody.value.copy(surface).lerp(sun, this.dark ? 0.7 : 0.8);
+      u.uGoldTint.value.copy(sun).lerp(new THREE.Color(0xffffff), 0.25);
       u.uBg.value.copy(bg);
       u.uSunCol.value.copy(sun);
       u.uShadeLo.value = this.dark ? 0.34 : 0.62;
@@ -737,6 +740,7 @@ export class AtlasThree {
       const steps = Number.isFinite(p.orbit) ? orbitLabel(p.orbit).toLowerCase() : "out of reach";
       pl.el.setAttribute("aria-label", `${pl.cat.name}, ${steps}, ${p.explored.length} of ${p.topics.length} explored${p.complete ? ", complete" : ""}. Press Enter to open this planet.`);
       pl.el.classList.toggle("is-complete", p.complete);
+      (pl.body.material as THREE.ShaderMaterial).uniforms.uGold.value = p.complete ? 1 : 0;
       pl.el.classList.toggle("is-far", !Number.isFinite(p.orbit));
       (pl.prog.material as THREE.ShaderMaterial).uniforms.uFrac.value = p.topics.length ? p.explored.length / p.topics.length : 0;
     }
