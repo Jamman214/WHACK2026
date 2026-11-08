@@ -99,6 +99,8 @@ interface PlanetObj {
   spin: THREE.Quaternion; spin0: THREE.Quaternion; spin1: THREE.Quaternion; spinT0: number; spinning: boolean;
   color: THREE.Color;
   dim: number;
+  lift: number; // 0..1 hover-connected brightening
+  rdim: number; // route opacity factor while another planet is hot
   el: HTMLButtonElement;
   nameEl: HTMLSpanElement;
   subEl: HTMLElement;
@@ -558,7 +560,7 @@ export class AtlasThree {
       idx, id: cat.id, cat, topics: [], body, atmo, prog, center: new THREE.Vector3(),
       p: { ang: 0, R: 0, r: 1, k: 0 }, p0: { ang: 0, R: 0, r: 1, k: 0 }, p1: { ang: 0, R: 0, r: 1, k: 0 },
       spin: new THREE.Quaternion(), spin0: new THREE.Quaternion(), spin1: new THREE.Quaternion(), spinT0: 0, spinning: false,
-      color: new THREE.Color(), dim: 1, el, nameEl, subEl, w: 0, h: 0, key: "", px: 0, py: 0, rpx: 0, dist: 1, shown: false,
+      color: new THREE.Color(), dim: 1, lift: 0, rdim: 1, el, nameEl, subEl, w: 0, h: 0, key: "", px: 0, py: 0, rpx: 0, dist: 1, shown: false,
       explored: 0, route, routeParent: -2, routeW: 0,
     };
     pl.spin.setFromUnitVectors(new THREE.Vector3(0, 0, 1), sphericalDir(PLANET_POLAR, 0));
@@ -820,14 +822,24 @@ export class AtlasThree {
     };
     const a = reduceMotion() ? 1 : 1 - Math.exp(-dt * 7);
     let moving = false;
+    const hotP = this.hoverPlanet >= 0 ? this.hoverPlanet : this.focusPlanetEl >= 0 ? this.focusPlanetEl : -2;
+    const conn = m === "overview" && hotP >= 0 ? this.connectedTo(hotP) : null;
     for (const k of Object.keys(target) as (keyof typeof target)[]) {
       const d = target[k] - this.fx[k];
       if (Math.abs(d) > 0.004) { this.fx[k] += d * a; moving = true; } else this.fx[k] = target[k];
     }
     for (const pl of this.planets) {
-      const want = m === "overview" ? 1 : m === "home" ? 0.38 : pl.idx === this.focusIdx ? 1 : DIM;
+      const inSet = conn?.has(pl.idx) ?? false;
+      const want = m === "overview" ? (conn && !inSet ? 0.35 : 1) : m === "home" ? 0.38 : pl.idx === this.focusIdx ? 1 : DIM;
       const d = want - pl.dim;
       if (Math.abs(d) > 0.004) { pl.dim += d * a; moving = true; } else pl.dim = want;
+      const wl = conn && inSet ? 1 : 0;
+      const dl = wl - pl.lift;
+      if (Math.abs(dl) > 0.004) { pl.lift += dl * a; moving = true; } else pl.lift = wl;
+      const par = pl.routeParent;
+      const wr = conn && !(inSet && (par < 0 || conn.has(par))) ? 0.35 : 1;
+      const dr = wr - pl.rdim;
+      if (Math.abs(dr) > 0.004) { pl.rdim += dr * a; moving = true; } else pl.rdim = wr;
     }
     return moving;
   }
@@ -1145,6 +1157,21 @@ export class AtlasThree {
     }
   }
 
+  /** Hot planet + route parent + route children + planets sharing a hover line with it. */
+  private connectedTo(hot: number): Set<number> {
+    const set = new Set<number>([hot]);
+    const a = this.planets[hot];
+    if (!a) return set;
+    if (a.routeParent >= 0) set.add(a.routeParent);
+    for (const o of this.planets) {
+      if (o.routeParent === hot) set.add(o.idx);
+      if (o === a) continue;
+      const key = a.id < o.id ? `${a.id}|${o.id}` : `${o.id}|${a.id}`;
+      if (this.pairMax.get(key)) set.add(o.idx);
+    }
+    return set;
+  }
+
   private updateRoutes() {
     const hr = (this.pos?.home.r ?? 1.8) * U, origin = this._v.set(0, 0, 0);
     const fxR = this.fx.routes;
@@ -1157,7 +1184,7 @@ export class AtlasThree {
       this.arc(A, rA, pl.center, pl.p.r * U, 0.1, 0.07, this.pts);
       r.setPoints(this.pts);
       const wn = wNorm(pl.routeW), k = Math.min(1, pl.p.k);
-      const op = (0.92 - 0.38 * k) * fxR * (hot === pl.idx ? 1 : 0.92);
+      const op = (0.92 - 0.38 * k) * fxR * (hot === pl.idx ? 1 : 0.92) * pl.rdim;
       r.obj.visible = op > 0.02;
       r.mat.opacity = op;
       r.mat.linewidth = (1.5 + 3.4 * wn) * (1 - 0.25 * k) + (hot === pl.idx ? 1 : 0);
@@ -1215,7 +1242,7 @@ export class AtlasThree {
       const u = (pl.body.material as THREE.ShaderMaterial).uniforms;
       const k = Math.min(pl.p.k, 1.25), focused = pl.idx === this.focusIdx && this.mode === "planet";
       const hot = pl.idx === this.hoverPlanet || pl.idx === this.focusPlanetEl;
-      u.uBright.value = 1.12 - 0.42 * Math.min(k, 1) + (hot ? 0.1 : 0);
+      u.uBright.value = 1.12 - 0.42 * Math.min(k, 1) + (hot ? 0.1 : 0) + 0.12 * pl.lift;
       u.uSat.value = 1.05 - 0.55 * Math.min(k, 1.1);
       u.uFade.value = 0.42 * Math.min(k, 1.2) * (1 - fx.view * 0.6);
       u.uDim.value = pl.dim;
@@ -1225,7 +1252,7 @@ export class AtlasThree {
       u.uKeyDir.value.copy(keyDir);
       const a = (pl.atmo.material as THREE.ShaderMaterial).uniforms;
       a.uColor.value.copy(pl.color).lerp(this.bgCol, Math.min(0.55, 0.4 * Math.min(k, 1.2)));
-      a.uStrength.value = ((this.dark ? 0.6 : 0.48) * (1 - 0.5 * Math.min(k, 1)) + (hot ? 0.25 : 0) + (focused ? 0.2 : 0)) * pl.dim;
+      a.uStrength.value = ((this.dark ? 0.6 : 0.48) * (1 - 0.5 * Math.min(k, 1)) + (hot ? 0.25 : 0) + 0.2 * pl.lift + (focused ? 0.2 : 0)) * pl.dim;
       a.uCos.value = Math.sqrt(1 - 1 / (1.13 * 1.13));
       const pu = (pl.prog.material as THREE.ShaderMaterial).uniforms;
       pu.uColor.value.copy(this.sunCol).lerp(pl.color, 0.1);
