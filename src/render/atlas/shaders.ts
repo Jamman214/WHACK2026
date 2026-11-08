@@ -22,6 +22,7 @@ export const PLANET_FRAG = /* glsl */ `
 uniform vec3 uBody; uniform vec3 uTint; uniform vec3 uBg; uniform vec3 uSunPos; uniform vec3 uSunCol;
 uniform vec3 uKeyDir; uniform float uKeyI; uniform float uRimI; uniform float uSunI; uniform float uShadeLo;
 uniform float uGrid; uniform float uSat; uniform float uBright; uniform float uFade; uniform float uDim; uniform float uRim;
+uniform float uGold; uniform vec3 uGoldBody; uniform vec3 uGoldTint;
 varying vec3 vN; varying vec3 vObj; varying vec3 vV; varying vec3 vW; varying vec3 vWN;
 #include <fog_pars_fragment>
 float line(float d) { return 1.0 - smoothstep(0.0, fwidth(d) * 1.25, abs(d)); }
@@ -33,17 +34,19 @@ void main() {
   float lamS = pow(clamp(dot(wn, L) * 0.5 + 0.5, 0.0, 1.0), 1.25);
   float lamK = max(dot(wn, normalize(uKeyDir)), 0.0);
   float lit = mix(uShadeLo, 1.0, lamS) * uSunI + lamK * uKeyI;
-  vec3 col = uBody * lit;
+  // a fully explored planet turns gold: surface and grid/rim tint both swap to the sun's colour
+  vec3 body = mix(uBody, uGoldBody, uGold); vec3 tint = mix(uTint, uGoldTint, uGold);
+  vec3 col = body * lit;
   col += uSunCol * pow(clamp(dot(wn, L), 0.0, 1.0), 3.0) * 0.16 * uSunI;
   // lat / long grid so rotation and depth read on an otherwise plain sphere
   vec3 p = normalize(vObj);
   float g = 0.0;
   for (int i = 1; i < 6; i++) { float lat = (float(i) - 3.0) * 0.5236; g = max(g, line(p.y - sin(lat)) * (i == 3 ? 1.0 : 0.6)); }
   for (int i = 0; i < 6; i++) { float a = float(i) * 0.5236; g = max(g, line(dot(p, vec3(-sin(a), 0.0, cos(a)))) * 0.5 * (1.0 - smoothstep(0.86, 0.99, abs(p.y)))); }
-  col = mix(col, uTint, g * uGrid);
+  col = mix(col, tint, g * uGrid);
   float fres = pow(1.0 - ndv, 2.4);
-  col = mix(col, uTint, smoothstep(0.35, 1.0, fres) * 0.7);
-  col += uTint * fres * (uRim + uRimI * (0.6 + 0.4 * lamK));
+  col = mix(col, tint, smoothstep(0.35, 1.0, fres) * 0.7);
+  col += tint * fres * (uRim + uRimI * (0.6 + 0.4 * lamK));
   // falloff with distance from home: desaturate, darken, fade into the page colour
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(vec3(lum), col, uSat) * uBright;
