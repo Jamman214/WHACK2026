@@ -37,7 +37,7 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 }
 
 .theme-board .wrap {
-  max-width: 960px; margin: 0 auto; padding: 28px 16px 48px;
+  max-width: 1472px; margin: 0 auto; padding: 28px 16px 48px;
   display: flex; flex-direction: column; gap: 20px;
 }
 .theme-board header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
@@ -77,13 +77,19 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board .btn.ghost { background: transparent; }
 .theme-board .btn:disabled { opacity: 0.4; cursor: default; }
 .theme-board .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* onboarding body is ~25% larger than the shared sizes above (the intro screen keeps them); the headline card, heading and notice are untouched */
+.theme-board:not(.intro) .btn { font-size: 17px; padding: 12px 20px; border-radius: 11px; gap: 10px; }
+.theme-board:not(.intro) .btn.big { font-size: 20px; padding: 15px 26px; }
+.theme-board:not(.intro) .btn kbd { font-size: 13px; }
+.theme-board:not(.intro) .deck .choices { height: 64px; gap: 12px; }
+.theme-board:not(.intro) .summary { font-size: 15px; }
 .theme-board .board {
-  width: 100%; max-width: 720px; align-self: center; position: relative; background: var(--surface);
+  width: 100%; max-width: 1440px; align-self: center; position: relative; background: var(--surface);
   border: 1px solid var(--line); border-radius: 14px; padding: 10px; overflow: hidden;
 }
 .theme-board canvas { display: block; width: 100%; height: auto; }
 /* 3D board: no box, the scene's own backboard and shadows form the edge */
-.theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: visible; max-width: 720px; }
+.theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: visible; max-width: 1440px; }
 .theme-board .board.is-3d canvas { aspect-ratio: 480 / 242; height: auto; }
 /* counter cards in the bottom corners; --bk is board-units -> px and --bump (0..1) is set by the renderer while the bucket glows */
 .theme-board .board-card {
