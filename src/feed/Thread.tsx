@@ -6,7 +6,6 @@ type Props = {
   /** Why `b` matters to someone who follows `a`. */
   reason?: (a: string, b: string) => string | undefined;
   onChipClick?: (topicId: string, cardTopicId: string) => void;
-  onShowOnMap?: () => void;
 };
 
 /** The distance badge: pips filled up to the story's ring, plus the words ("1 step outside your bubble"). */
@@ -23,7 +22,7 @@ export function Badge({ hops }: { hops: number }) {
 }
 
 /** The route from what you follow to this story, as a left-to-right thread. */
-export function Thread({ card, topicName, reason, onChipClick, onShowOnMap }: Props) {
+export function Thread({ card, topicName, reason, onChipClick }: Props) {
   const p = card.placement;
   const outside = p.kind === 'bridge';
   const path = outside ? p.path : [];
@@ -33,9 +32,6 @@ export function Thread({ card, topicName, reason, onChipClick, onShowOnMap }: Pr
     <section className={`ed__thread ed__thread--r${outside ? Math.min(p.hops, 3) : 0}`} aria-label="How you’re connected to this story">
       <div className="ed__threadtop">
         <Badge hops={outside ? p.hops : 0} />
-        {onShowOnMap && (
-          <button type="button" className="ed__link" onClick={onShowOnMap}>Show this thread on the map <span aria-hidden>↗</span></button>
-        )}
       </div>
 
       {outside ? (

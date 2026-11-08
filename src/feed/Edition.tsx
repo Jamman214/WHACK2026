@@ -162,11 +162,6 @@ export function Edition({
               <span className="eyebrow">Today’s edition</span>
               <h1 className="ed__title">{today()}</h1>
             </div>
-            {map && (
-              <button ref={mapBtn} type="button" className="ed__map" onClick={openMapAtSel} aria-haspopup="dialog">
-                <span aria-hidden>◎</span> Map
-              </button>
-            )}
           </header>
 
           <section className="ed__dist" aria-label="Distance">
@@ -252,9 +247,17 @@ export function Edition({
             <>
               <p className="sr-only" aria-live="polite">Story {Math.max(1, visible.findIndex((c) => c.id === sel.id) + 1)} of {visible.length}: {sel.headline}</p>
               <Thread card={sel} topicName={topicName} reason={reason}
-                onChipClick={(id, cardTopic) => onOpenMap({ sel: cardTopic, center: [id] })}
-                onShowOnMap={map ? openMapAtSel : undefined} />
+                onChipClick={(id, cardTopic) => onOpenMap({ sel: cardTopic, center: [id] })} />
               <Article key={sel.id} card={sel} onRead={onRead} />
+              {map && (
+                <button type="button" className="ed__mapcta" onClick={openMapAtSel} aria-haspopup="dialog">
+                  <span aria-hidden className="ed__mapcta-icon">◎</span>
+                  <span className="ed__mapcta-text">
+                    <strong>{sel.placement.kind === 'bridge' ? 'See this topic area on your map' : 'Explore your map'}</strong>
+                  </span>
+                  <span aria-hidden className="ed__mapcta-go">→</span>
+                </button>
+              )}
             </>
           )}
         </main>

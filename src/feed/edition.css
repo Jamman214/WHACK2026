@@ -88,8 +88,6 @@
 .ed__thread { display: grid; gap: 14px; }
 .ed__thread--r1 { --r: var(--ring-1); } .ed__thread--r2 { --r: var(--ring-2); } .ed__thread--r3 { --r: var(--ring-3); }
 .ed__threadtop { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.ed__link { padding: 0; border: 0; background: none; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--accent); }
-.ed__link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .ed__threadrow { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .ed__chain { list-style: none; margin: 0; padding: 0; display: flex; align-items: flex-start; flex-wrap: wrap; }
 .ed__node { --c: var(--accent); display: flex; align-items: flex-start; }
@@ -124,6 +122,15 @@
   background: var(--ink); color: var(--surface); font-weight: 600; font-size: 15px; line-height: 1; text-decoration: none;
 }
 .ed__cta:hover { opacity: 0.88; }
+.ed__mapcta {
+  flex: none; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 76px; padding: 16px 24px; border-radius: 20px; cursor: pointer; text-align: left; color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.ed__mapcta:hover { border-color: var(--accent); }
+.ed__mapcta-icon { font-size: 26px; line-height: 1; color: var(--accent); }
+.ed__mapcta-text { flex: 1; min-width: 0; display: grid; gap: 3px; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.ed__mapcta-text strong { font-size: 17px; font-weight: 600; color: var(--ink); }
+.ed__mapcta-go { font-size: 20px; line-height: 1; color: var(--accent); }
 .ed__empty { margin: 0; color: var(--muted); }
 
 .ed__skel { height: 120px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); animation: ed-pulse 1.2s ease-in-out infinite alternate; }
