@@ -10,12 +10,12 @@ export interface Ball {
   landed?: boolean;
 }
 
-export interface BoardTokens { peg: string; line: string; muted: string; ink: string; accent: string; hollow: string; surface: string; bg: string; good: string; bad: string }
+export interface BoardTokens { peg: string; line: string; muted: string; ink: string; accent: string; surface: string; bg: string; good: string; bad: string }
 
 export function readTokens(el: Element): BoardTokens {
   const cs = getComputedStyle(el);
   const t = (n: string) => cs.getPropertyValue(n).trim();
-  return { peg: t("--peg"), line: t("--line"), muted: t("--muted"), ink: t("--ink"), accent: t("--accent"), hollow: t("--hollow"), surface: t("--surface"), bg: t("--bg"), good: t("--good"), bad: t("--bad") };
+  return { peg: t("--peg"), line: t("--line"), muted: t("--muted"), ink: t("--ink"), accent: t("--accent"), surface: t("--surface"), bg: t("--bg"), good: t("--good"), bad: t("--bad") };
 }
 
 export function sizeCanvas(cv: HTMLCanvasElement) {
@@ -88,7 +88,6 @@ export function drawSplitBoard(
   ctx.strokeStyle = tk.accent; ctx.lineWidth = 3.5; ctx.lineCap = "round";
   ctx.beginPath(); ctx.moveTo(-16, 0); ctx.lineTo(16, 0); ctx.stroke();
   ctx.restore();
-  ctx.fillStyle = tk.ink; ctx.beginPath(); ctx.arc(cx, 23, 2.5, 0, 7); ctx.fill();
 
   // hoppers + buckets, glowing green / red for a moment after a ball lands
   ctx.textAlign = "center";
@@ -125,7 +124,6 @@ export function drawSplitBoard(
   for (const b of state.balls) {
     const p = ballPosition(b.pts, state.now - b.t0);
     ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 7);
-    if (b.seen) { ctx.fillStyle = tk.accent; ctx.fill(); }
-    else { ctx.fillStyle = tk.hollow; ctx.fill(); ctx.strokeStyle = tk.accent; ctx.lineWidth = 2; ctx.stroke(); }
+    ctx.fillStyle = tk.accent; ctx.fill();
   }
 }

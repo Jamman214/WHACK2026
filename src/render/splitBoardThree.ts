@@ -5,7 +5,7 @@
 import {
   AmbientLight, BufferGeometry, CanvasTexture, CapsuleGeometry, Color, DirectionalLight, Group, HemisphereLight,
   InstancedMesh, Material, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PCFShadowMap, PerspectiveCamera,
-  PlaneGeometry, PMREMGenerator, PointLight, Scene, ShadowMaterial, SphereGeometry, TorusGeometry, Vector3, WebGLRenderer,
+  PlaneGeometry, PMREMGenerator, PointLight, Scene, ShadowMaterial, SphereGeometry, Vector3, WebGLRenderer,
 } from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -94,8 +94,6 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     bucketS: std(0.55),   // hopper + bucket per side, so each can glow on its own
     bucketU: std(0.55),
     accent: std(0.3, 0.05),
-    hollow: std(0.45),
-    ink: std(0.4),
   };
   const geos: BufferGeometry[] = [];
   const track = <T extends BufferGeometry>(g: T) => (geos.push(g), g);
@@ -159,16 +157,13 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
   pegs.castShadow = pegs.receiveShadow = true;
   board.add(pegs);
 
-  // gate: a bar on a pivot, tilted by `flip`
+  // gate: a bar tilted by `flip` (no visible pivot)
   const gate = new Group();
   gate.position.set(wx(cx), wy(gateY), 2.4);
   const gateBar = new Mesh(track(new CapsuleGeometry(1.8, 28, 4, 12)), mats.accent);
   gateBar.rotation.z = Math.PI / 2;
   gateBar.castShadow = true;
-  const hub = new Mesh(track(new SphereGeometry(2.6, 16, 12)), mats.ink);
-  hub.position.z = 2.5;
-  hub.castShadow = true;
-  gate.add(gateBar, hub);
+  gate.add(gateBar);
   board.add(gate);
 
   // ---- landing glow: a soft halo on the board plus a point light in front of each bucket
@@ -200,26 +195,15 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
 
   // ---- balls
   const ballGeo = track(new SphereGeometry(BALL_R, 28, 20));
-  const coreGeo = track(new SphereGeometry(BALL_R - 1, 24, 16));
-  const ringGeo = track(new TorusGeometry(BALL_R - 0.9, 0.95, 10, 36));
   interface BallMesh { g: Group; end: number; ev: PathEvent[] }
   const ballMeshes = new Map<Ball, BallMesh>();
   const ballGroup = new Group();
   scene.add(ballGroup);
   const makeBall = (b: Ball) => {
     const g = new Group();
-    if (b.seen) {
-      const m = new Mesh(ballGeo, mats.accent);
-      m.castShadow = true;
-      g.add(m);
-    } else {
-      // hollow look: pale core inside an accent ring around the equator
-      const core = new Mesh(coreGeo, mats.hollow);
-      core.castShadow = true;
-      const ring = new Mesh(ringGeo, mats.accent);
-      ring.castShadow = true;
-      g.add(core, ring);
-    }
+    const m = new Mesh(ballGeo, mats.accent);
+    m.castShadow = true;
+    g.add(m);
     ballGroup.add(g);
     const bm = { g, end: pathDuration(b.pts), ev: pathEvents(b.pts) };
     ballMeshes.set(b, bm);
@@ -259,8 +243,6 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     lastGlow = { seen: -1, unseen: -1 };
     mats.peg.color.copy(peg);
     mats.accent.color.set(t.accent);
-    mats.hollow.color.set(t.hollow).lerp(new Color(t.surface), 0.3);
-    mats.ink.color.set(t.ink);
     mats.shadow.opacity = dark ? 0.5 : 0.22;
     hemi.intensity = dark ? 1.0 : 1.15;
     hemi.groundColor.set(dark ? 0x3a4150 : 0x9aa2b2);
