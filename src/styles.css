@@ -136,6 +136,11 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board .ob-top .deck { grid-area: deck; align-self: stretch; gap: var(--ob-space); }
 /* the card takes any height the side columns have beyond its own, so the band's top and bottom edges line up across all three columns */
 .theme-board.onboarding .card { flex: 1 1 auto; }
+/* progress through the cards: stays put (full) after the last answer, so the bar is the one thing that confirms you are done */
+.ob-progress { width: min(520px, 100%); display: flex; flex-direction: column; gap: 6px; }
+.ob-progress__label { display: flex; justify-content: space-between; font: 500 12px var(--mono); letter-spacing: 0.04em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ob-progress__track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.ob-progress__fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s ease-out; }
 /* same height as the answer row, so all the buttons sit on one line */
 .ob-tools { grid-area: tools; display: flex; gap: 10px; align-items: center; height: 64px; }
 .ob-stat { grid-area: stat; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; text-align: right; font-variant-numeric: tabular-nums; }
@@ -175,6 +180,7 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .intro .choices { justify-content: flex-start; margin-top: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
+  .ob-progress__fill { transition: none; }
   .theme-board .card.enter, .screen.fade { animation: none; }
   .theme-board .board-card .num { transform: none; }
 }

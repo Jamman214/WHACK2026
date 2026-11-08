@@ -258,6 +258,9 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
   const sorted = seen + unseen;
 
   const h = deck.current[idx];
+  // the backend can end early, so once it says so the cards served are the total
+  const total = finished ? served : max;
+  const pct = total ? Math.min(100, (100 * idx) / total) : 0;
   return (
     <div className="screen theme-board onboarding fade" ref={rootRef}>
       <div className="wrap">
@@ -271,12 +274,18 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
           </div>
 
           <div className="deck">
+            <div className="ob-progress" role="progressbar" aria-label="Articles sorted" aria-valuemin={0} aria-valuemax={total || undefined} aria-valuenow={Math.min(idx, total)}>
+              <div className="ob-progress__label">
+                <span>{done ? "All sorted" : total ? `Article ${idx + 1} of ${total}` : "Loading…"}</span>
+                <span>{total ? Math.round(pct) : 0}%</span>
+              </div>
+              <div className="ob-progress__track"><div className="ob-progress__fill" style={{ width: pct + "%" }} /></div>
+            </div>
             <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "") + (done ? " gone" : "")} ref={cardRef} key={idx} aria-hidden={done || undefined}>
               {done || !h ? null : (
                 <>
                   <div className="cat">{TOPIC_BY_ID[h.topicId].name}</div>
                   <div className="hl">{h.headline}</div>
-                  <div className="meta">{idx + 1} of {max}</div>
                 </>
               )}
             </div>
