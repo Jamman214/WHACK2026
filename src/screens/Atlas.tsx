@@ -296,6 +296,9 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
   return (
     <div ref={rootRef} className="screen theme-atlas atlas fade" style={vars}>
       <div className="atlas__ui">
+        {/* top of the viewport: the search bar is the one thing always within reach */}
+        <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} />
+
         {/* top-left, in reading order: the way out (feed), the way up (crumbs), then the topic finder */}
         <div className="ov-tl" ref={tlRef}>
           <section className="ov ov-head" aria-labelledby="atlas-title">
@@ -327,7 +330,6 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
             <Crumbs planet={planet} sel={sel} mobile={mobile} goMap={ctx.goMap} leaveTopic={leaveTopic} />
           </div>
 
-          <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} />
         </div>
 
         {/* right (desktop) / bottom sheet (mobile): progress + the panel for the current level */}
