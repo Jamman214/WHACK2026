@@ -6,26 +6,35 @@
 export const BOARD_W = 480;
 export const BOARD_H = 242;
 
-/** Split-board geometry. */
+/**
+ * Split-board geometry, taken from the Figma layout (Figma px / 2 = board units). The board frame stays
+ * BOARD_W x BOARD_H; the funnel/gate/peg field sit lower than before and the hoppers are narrower and steeper.
+ */
 export const SPLIT = {
   cx: BOARD_W / 2,
   dx: 40,
-  rows: 10,
-  y0: 36,
+  /** 8 peg rows (rows 0..7); the last row is at y0 + 7 * dy = 153 */
+  rows: 8,
+  y0: 62,
   dy: 13,
-  /** top of the compact buckets (the hopper mouth) */
-  yB: 194,
-  /** bucket height */
-  bH: 24,
+  /** y of the funnel's top edge; the funnel is 16 tall */
+  top: 35,
+  /** y of the gate pivot, and where the centre wall starts */
+  gateY: 60.5,
+  wallTop: 65.5,
+  /** top of the buckets (the hopper mouth) */
+  yB: 174.5,
+  /** bucket height: tall enough to stack four rows of balls */
+  bH: 43.5,
   /** outer edge of each half; the hoppers start here */
-  half: 220,
+  half: 156,
   /** inner clear width of one bucket */
-  bW: 100,
+  bW: 87,
   /** distance from the centre wall to a bucket's inner clear edge */
-  bIn: 46,
-  /** y of the hopper slopes where they meet the board edge / the centre wall */
-  slopeOuterY: 170,
-  slopeInnerY: 182,
+  bIn: 39,
+  /** y of the hopper slopes where they meet the board edge / the apex on the centre line */
+  slopeOuterY: 155.5,
+  slopeInnerY: 162.5,
 } as const;
 
 export const BALL_RADIUS = 5;
@@ -75,7 +84,7 @@ export function bucketRect(isSeen: boolean) {
   return { x0, x1: x0 + bW, y0: yB, y1: yB + bH };
 }
 
-/** Hex-packed rows from the floor up; a bucket holds 2 rows of 9 = 18 balls before it would overfill. */
+/** Hex-packed rows from the floor up; a bucket holds 7 per row and stacks four rows (28 balls) below its rim. */
 export function createHeap(x0: number, w: number, yBot: number) {
   const cols = Math.floor((w - SP / 2) / SP);
   const slack = w - (cols * SP + SP / 2);
@@ -104,7 +113,7 @@ export type Heap = ReturnType<typeof createHeap>;
  */
 export function scriptedPath(isSeen: boolean, rng: Rng = Math.random): PathPoint[] {
   const { cx, dx, rows, y0, dy } = SPLIT;
-  const pts: PathPoint[] = [{ x: cx, y: 6, d: 0 }, { x: cx, y: 16, d: 160, fall: true }];
+  const pts: PathPoint[] = [{ x: cx, y: SPLIT.top + 6, d: 0 }, { x: cx, y: SPLIT.top + 16, d: 160, fall: true }];
   let r = isSeen ? 0 : 1;
   pts.push({ x: cx + (r - 0.5) * dx, y: y0 + dy - 7, d: 190, arc: 8, hit: pegIdx.get(100 + r) });
   const ok = (v: number, i: number) => (isSeen ? v < (i + 1) / 2 : v > (i + 1) / 2);
@@ -130,7 +139,26 @@ function hopperPath(isSeen: boolean, last: PathPoint, heap: Heap): PathPoint[] {
   const { cx, yB, half, slopeOuterY, slopeInnerY } = SPLIT;
   const m = (x: number) => (isSeen ? x : 2 * cx - x);
   const L = bucketRect(true); // seen-frame bucket
-  const lx = m(last.x);
+  const slope = (x: number) => {
+    // seen-frame surface of the hopper slope at x (outer slope left of the bucket, inner slope right of it)
+    const outer = x < (L.x0 + L.x1) / 2;
+    return outer
+      ? slopeOuterY + ((x - (cx - half)) * (yB - slopeOuterY)) / (L.x0 - 1 - (cx - half))
+      : slopeInnerY + ((x - cx) * (yB - slopeInnerY)) / (L.x1 + 1 - cx);
+  };
+  const cb = (L.x0 + L.x1) / 2;
+  const hw = (L.x1 - L.x0) / 2;
+  let lx = m(last.x);
+  // A ball whose centre is within the mouth, a ball's width clear of both walls, drops straight in.
+  const straight = Math.abs(lx - cb) <= hw - BALL_RADIUS - 1 + 1e-6;
+  if (!straight) {
+    // Otherwise it must land on a slope. The last peg row can drop a ball just past either end of the
+    // slope (beyond the outer rim, or on top of the inner wall), so pull it onto the slope.
+    lx = lx < cb ? Math.max(lx, cx - half + BALL_RADIUS + 1) : Math.max(lx, L.x1 + 4);
+    last.x = m(lx);
+    // the raised hoppers can sit above the last peg row's drop height: never start below the slope
+    last.y = Math.min(last.y, slope(lx) - 1 - BALL_RADIUS);
+  }
   const slot = heap.place(last.x);
   const sx = m(slot.x), sy = slot.y;
   const rimY = yB - 1 - BALL_RADIUS; // ball centre when resting on the rim
@@ -139,18 +167,12 @@ function hopperPath(isSeen: boolean, last: PathPoint, heap: Heap): PathPoint[] {
   const P = (x: number, p: Omit<PathPoint, "x">) => out.push({ x: m(x), ...p });
   const fallMs = (dist: number) => Math.round(70 + 12 * Math.sqrt(Math.max(dist, 1)));
 
-  if (lx >= L.x0 + 12 && lx <= L.x1 - 12) {
-    // straight into the mouth
+  if (straight) {
     fellFrom = last.y;
     P(sx, { y: sy, d: fallMs(sy - last.y), fall: true, land: true, thud: 1 });
   } else {
-    const outer = lx < L.x0;
-    const surf = (x: number) => {
-      const line = outer
-        ? slopeOuterY + ((x - (cx - half)) * (yB - slopeOuterY)) / (L.x0 - 1 - (cx - half))
-        : slopeInnerY + ((x - (cx - 2)) * (yB - slopeInnerY)) / (L.x1 + 1 - (cx - 2));
-      return line - 1 - BALL_RADIUS;
-    };
+    const outer = lx < cb;
+    const surf = (x: number) => slope(x) - 1 - BALL_RADIUS;
     const ex = outer ? L.x0 + 5 : L.x1 - 5; // roll to just inside the rim
     P(lx, { y: surf(lx), d: fallMs(surf(lx) - last.y), fall: true, thud: 0.7 });
     const run = Math.abs(ex - lx);
