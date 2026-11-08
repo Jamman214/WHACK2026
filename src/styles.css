@@ -22,17 +22,18 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board {
   --bg: #ECEFF3; --surface: #F8F9FB; --ink: #13161B; --muted: #5E6675; --line: #C9CFD9;
   --peg: #8E97A8; --accent: #2F55F5; --accent-ink: #FFFFFF; --hollow: #ECEFF3;
+  --good: #16a34a; --bad: #dc2626;
   color: var(--ink); font-size: 15px; color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .theme-board {
     --bg: #0E1116; --surface: #171B22; --ink: #E7EAF0; --muted: #98A1B2; --line: #2C323D;
-    --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --hollow: #0E1116; color-scheme: dark;
+    --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --hollow: #0E1116; --good: #4ade80; --bad: #f87171; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] .theme-board {
   --bg: #0E1116; --surface: #171B22; --ink: #E7EAF0; --muted: #98A1B2; --line: #2C323D;
-  --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --hollow: #0E1116; color-scheme: dark;
+  --peg: #5D6677; --accent: #7D97FF; --accent-ink: #0E1116; --hollow: #0E1116; --good: #4ade80; --bad: #f87171; color-scheme: dark;
 }
 
 .theme-board .wrap {
@@ -47,20 +48,29 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board .deck { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .theme-board .card {
   width: min(520px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px;
-  display: flex; flex-direction: column; gap: 6px; min-height: 118px; box-shadow: 0 6px 20px -12px rgba(0, 0, 0, 0.35);
+  display: flex; flex-direction: column; gap: 6px; box-shadow: 0 6px 20px -12px rgba(0, 0, 0, 0.35);
+  /* fixed height (room for a 3-line headline) so 1- vs 2-line headlines and the done state never move the buttons or board */
+  height: 176px; overflow: hidden;
 }
 .theme-board .card .cat { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
-.theme-board .card .hl { font-family: var(--display); font-weight: 500; font-size: 21px; line-height: 1.25; text-wrap: balance; }
+.theme-board .card .hl { font-family: var(--display); font-weight: 500; font-size: 21px; line-height: 1.25; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .theme-board .card .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: auto; }
+/* fade only: a translate here would move the card's box while the user is reaching for the buttons */
 .theme-board .card.enter { animation: card-enter 0.28s ease-out; }
-@keyframes card-enter { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes card-enter { from { opacity: 0; } to { opacity: 1; } }
 .theme-board .choices { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+/* choices row keeps one fixed height whether it shows the two answer buttons or the done button */
+.theme-board .deck .choices { height: 52px; align-items: center; flex-wrap: nowrap; }
 .theme-board .btn {
-  font: 500 14px var(--body); border-radius: 9px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line);
+  font: 500 14px var(--body); white-space: nowrap; border-radius: 9px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line);
   background: var(--surface); color: var(--ink); display: inline-flex; gap: 8px; align-items: center;
 }
 .theme-board .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .theme-board .btn.big { font-size: 16px; padding: 12px 20px; }
+/* the done button replaces the answer buttons in the same row; it fades in and ignores clicks for 600ms so a
+   second click aimed at the last card cannot hit it by accident */
+.theme-board .deck .btn.big { animation: done-arrive 0.6s both; }
+@keyframes done-arrive { 0% { opacity: 0; pointer-events: none; } 70% { opacity: 1; pointer-events: none; } 100% { opacity: 1; pointer-events: auto; } }
 .theme-board .btn kbd { font: 500 11px var(--mono); opacity: 0.7; }
 .theme-board .btn.ghost { background: transparent; }
 .theme-board .btn:disabled { opacity: 0.4; cursor: default; }
@@ -70,8 +80,23 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
   border: 1px solid var(--line); border-radius: 14px; padding: 10px; overflow: hidden;
 }
 .theme-board canvas { display: block; width: 100%; height: auto; }
+/* 3D board: no box, the scene's own backboard and shadows form the edge */
+.theme-board .board.is-3d { background: transparent; border: 0; border-radius: 0; padding: 0; overflow: visible; max-width: 720px; }
+.theme-board .board.is-3d canvas { aspect-ratio: 480 / 242; height: auto; }
+.theme-board .board-label {
+  position: absolute; left: 0; top: 0; pointer-events: none; white-space: pre; will-change: transform;
+  font: 500 11px var(--mono); color: var(--muted); letter-spacing: 0.02em; --bump: 0;
+}
+/* count pops (scale + colour + weight) while its bucket glows; --bump runs 0..1 and is set from the renderer */
+.theme-board .board-label .bl {
+  display: inline-block; transform-origin: 50% 60%; transform: scale(calc(1 + 0.3 * var(--bump)));
+}
+.theme-board .board-label.s .bl { color: color-mix(in srgb, var(--muted), var(--good) calc(var(--bump) * 100%)); }
+.theme-board .board-label.u .bl { color: color-mix(in srgb, var(--muted), var(--bad) calc(var(--bump) * 100%)); }
+.theme-board .board-label b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.theme-board .board-label.s b, .theme-board .board-label.u b { font-weight: 700; }
 .theme-board .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
-.theme-board .summary { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
+.theme-board .summary { min-height: 3em; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
 .theme-board .summary b { color: var(--ink); font-weight: 500; }
 .theme-board .legend { display: flex; gap: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .theme-board .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 6px; }
@@ -91,6 +116,7 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 
 @media (prefers-reduced-motion: reduce) {
   .theme-board .card.enter, .screen.fade { animation: none; }
+  .theme-board .board-label .bl { transform: none; }
 }
 
 /* ============ Atlas tokens ============ */
