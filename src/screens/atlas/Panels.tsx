@@ -17,6 +17,8 @@ export interface PanelCtx {
   sm: SolarModel;
   known: Set<string>;
   provider: NewsProvider;
+  /** Narrow screens have no separate news panel, so stories stay inside this one. */
+  inlineNews: boolean;
   /** Open a planet (or the home planet) with nothing selected. */
   openPlanet: (id: PlanetKey) => void;
   /** Open the planet a topic lives on with the topic selected. */
@@ -232,7 +234,7 @@ export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel:
         </ul>
       </Sec>
 
-      {!sel && <News key={id} provider={c.provider} lay={lay} ids={p.topics} heading={`News from ${cat.name}`} showTopic onRead={c.read} />}
+      {c.inlineNews && !sel && <News key={id} provider={c.provider} lay={lay} ids={p.topics} heading={`News from ${cat.name}`} showTopic onRead={c.read} />}
 
     </>
   );
@@ -322,12 +324,12 @@ function TopicDetail({ id, lay, known, ...c }: PanelCtx & { id: string }) {
       {body}
       <div className="btnrow">
         {ring !== 0 ? (
-          <p className="note">Read a story below to bring this topic into your bubble.</p>
+          <p className="note">Read a story on this topic to bring it into your bubble.</p>
         ) : known.size > 1 ? (
           <button type="button" className="at-btn" onClick={() => c.remove(id)}>Remove from bubble</button>
         ) : <p className="note">{LAST_NOTE}</p>}
       </div>
-      <News key={id} provider={c.provider} lay={lay} ids={[id]} heading={`News on ${topicName(id)}`} showTopic={false} onRead={c.read} />
+      {c.inlineNews && <News key={id} provider={c.provider} lay={lay} ids={[id]} heading={`News on ${topicName(id)}`} showTopic={false} onRead={c.read} />}
     </div>
   );
 }

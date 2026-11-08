@@ -10,6 +10,7 @@ import { layout, pathTo } from "../lib/layout";
 import { solarModel } from "../lib/solar";
 import AtlasScene, { webglAvailable } from "./AtlasScene";
 import AtlasSvg from "./AtlasSvg";
+import News from "./atlas/News";
 import Search from "./atlas/Search";
 import Toast from "./atlas/Toast";
 import { loadStart, saveBubble } from "../lib/bubbleStore";
@@ -85,6 +86,8 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
   // WebGL scene by default; the flat SVG when WebGL is missing or fails to start.
   const [gl, setGl] = useState(webglAvailable);
   const mobile = useMedia("(max-width: 767px)");
+  const wide = useMedia("(min-width: 1100px)"); // room for a news panel as well as the exploration panel
+  const [newsOpen, setNewsOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(() => !matchMedia("(max-width: 767px)").matches || !!focusSel);
   const [searchOpen, setSearchOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -97,6 +100,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
   const rootRef = useRef<HTMLDivElement>(null);
   const tlRef = useRef<HTMLDivElement>(null);
   const sideRef = useRef<HTMLElement>(null);
+  const newsRef = useRef<HTMLElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -205,6 +209,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
   // From the panels: navigate, then rescue focus if the clicked control went away.
   const ctx: PanelCtx = {
     lay, sm, known, provider,
+    inlineNews: !wide,
     openPlanet: (id) => { openPlanet(id); toPanel(); },
     openTopic: (id) => { openTopic(id); toPanel(); },
     toggleTopic,
@@ -268,6 +273,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
   }, [goMap, toPanel]);
 
   // --- tell the scene how much of the canvas the overlays cover -------------------------------------
+  const sideNews = wide && planet !== null && planet !== "home";
   const [insets, setInsets] = useState<Insets>({ top: 0, right: 0, bottom: 0, left: 0 });
   useLayoutEffect(() => {
     const root = rootRef.current, tl = tlRef.current, side = sideRef.current;
@@ -275,16 +281,18 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
     const G = 12;
     const measure = () => {
       const r = root.getBoundingClientRect(), a = tl.getBoundingClientRect(), s = side.getBoundingClientRect();
+      // A collapsed news panel is only a small bar in the corner, so the map can use the full width under it.
+      const n = newsOpen ? newsRef.current?.getBoundingClientRect() : undefined;
       const next: Insets = mobile
         ? { top: Math.round(a.bottom - r.top + G), right: 0, bottom: Math.round(r.bottom - s.top + G), left: 0 }
-        : { top: 0, right: Math.round(r.right - s.left + G), bottom: 0, left: Math.round(a.right - r.left + G) };
+        : { top: 0, right: n ? Math.round(r.right - n.left + G) : 0, bottom: 0, left: Math.round(a.right - r.left + G) };
       setInsets((p) => (SAME_INSETS(p, next) ? p : next));
     };
     measure();
     const ro = new ResizeObserver(measure);
-    [root, tl, side].forEach((el) => ro.observe(el));
+    [root, tl, side, newsRef.current].forEach((el) => { if (el) ro.observe(el); });
     return () => ro.disconnect();
-  }, [mobile]);
+  }, [mobile, sideNews, newsOpen]);
 
   const vars = {
     "--in-t": insets.top + "px", "--in-r": insets.right + "px", "--in-b": insets.bottom + "px", "--in-l": insets.left + "px",
@@ -292,6 +300,10 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
   const bodyId = useId();
   const pct = Math.round((known.size / TOPICS.length) * 100);
   const panelLabel = planet === null ? "Map" : planetName(planet);
+  const newsBodyId = useId();
+  const newsHeading = sel ? `News on ${topicName(sel)}` : planet ? `News from ${planetName(planet)}` : "";
+  // Inside a planet on desktop the header shrinks to one row, leaving the left column to the panel.
+  const compact = !mobile && planet !== null;
 
   return (
     <div ref={rootRef} className="screen theme-atlas atlas fade" style={vars}>
@@ -299,40 +311,49 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
         {/* top of the viewport: the search bar is the one thing always within reach */}
         <Search lay={lay} open={searchOpen} setOpen={setSearchOpen} inputRef={searchRef} onPick={openTopic} />
 
-        {/* top-left, in reading order: the way out (feed), the way up (crumbs), then the topic finder */}
+        {/* left column on desktop: the way out and up, then exploration. On phones its two children position themselves. */}
+        <div className="ov-left">
         <div className="ov-tl" ref={tlRef}>
-          <section className="ov ov-head" aria-labelledby="atlas-title">
-            {planet !== null && (
-              <button type="button" className="at-back" onClick={() => { goMap(); toPanel(); }}>
-                <span aria-hidden="true" className="at-back__arrow">←</span>
-                <span>Back to map</span>
-                <kbd aria-hidden="true">Esc</kbd>
-              </button>
-            )}
-            {onClose && (
-              <button type="button" className={planet !== null ? "at-back at-back--quiet" : "at-back"} data-autofocus onClick={close}>
-                <span aria-hidden="true" className="at-back__arrow">←</span>
-                <span>Back to your feed</span>
-                {planet === null && <kbd aria-hidden="true">Esc</kbd>}
-              </button>
-            )}
-            <div className="ov-head__text">
-              <h1 id="atlas-title">Topic Atlas</h1>
-              <p className="sub">You are the sun. The further out a planet orbits, the further it is from what you know.</p>
-            </div>
-          </section>
+          {compact ? <h1 id="atlas-title" className="sr-only">Topic Atlas</h1> : (
+            <section className="ov ov-head" aria-labelledby="atlas-title">
+              {planet !== null && (
+                <button type="button" className="at-back" onClick={() => { goMap(); toPanel(); }}>
+                  <span aria-hidden="true" className="at-back__arrow">←</span>
+                  <span>Back to map</span>
+                  <kbd aria-hidden="true">Esc</kbd>
+                </button>
+              )}
+              {onClose && (
+                <button type="button" className={planet !== null ? "at-back at-back--quiet" : "at-back"} data-autofocus onClick={close}>
+                  <span aria-hidden="true" className="at-back__arrow">←</span>
+                  <span>Back to your feed</span>
+                  {planet === null && <kbd aria-hidden="true">Esc</kbd>}
+                </button>
+              )}
+              <div className="ov-head__text">
+                <h1 id="atlas-title">Topic Atlas</h1>
+                <p className="sub">You are the sun. The further out a planet orbits, the further it is from what you know.</p>
+              </div>
+            </section>
+          )}
 
           <div className="ov ov-crumb">
-            <button type="button" className="at-home" data-moved={moved || undefined} onClick={ctx.goMap}
-              title="Show the whole map">
-              <span aria-hidden="true">⌂</span> Home<span className="sr-only">: show the whole map</span>
-            </button>
+            {compact ? onClose && (
+              <button type="button" className="at-home" data-autofocus onClick={close}>
+                <span aria-hidden="true">←</span> Feed<span className="sr-only">: back to your feed</span>
+              </button>
+            ) : (
+              <button type="button" className="at-home" data-moved={moved || undefined} onClick={ctx.goMap}
+                title="Show the whole map">
+                <span aria-hidden="true">⌂</span> Home<span className="sr-only">: show the whole map</span>
+              </button>
+            )}
             <Crumbs planet={planet} sel={sel} mobile={mobile} goMap={ctx.goMap} leaveTopic={leaveTopic} />
           </div>
 
         </div>
 
-        {/* right (desktop) / bottom sheet (mobile): progress + the panel for the current level */}
+        {/* left column (desktop) / bottom sheet (mobile): progress + the panel for the current level */}
         <aside ref={sideRef} className="ov ov-side" aria-label={`${panelLabel}: your bubble and details`} data-open={panelOpen}>
           <div className="side__bar">
             <div className="meter">
@@ -344,6 +365,9 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
               <span aria-hidden="true">{panelOpen ? "▾" : "▴"}</span>
               <span>{panelOpen ? "Hide" : "Details"}</span>
               <span className="sr-only">{panelOpen ? " panel" : " panel: where to next and planet details"}</span>
+            </button>
+            <button type="button" className="at-helpbtn at-helpbtn--round" aria-haspopup="dialog" aria-label="How to read the map" onClick={() => setHelpOpen(true)}>
+              <span aria-hidden="true">?</span>
             </button>
           </div>
           <div id={bodyId} ref={bodyRef} className="side__body" hidden={!panelOpen}>
@@ -357,11 +381,25 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
             </div>
           </div>
         </aside>
+        </div>
 
-        {/* bottom-left (desktop): the map key lives behind a ? button */}
-        <button type="button" className="ov at-helpbtn at-helpbtn--round" aria-haspopup="dialog" aria-label="How to read the map" onClick={() => setHelpOpen(true)}>
-          <span aria-hidden="true">?</span>
-        </button>
+        {/* right (wide screens, inside a planet): what to read, filtered by the topic picked on the left */}
+        {sideNews && (
+          <aside ref={newsRef} className="ov ov-news" aria-label={newsHeading} data-open={newsOpen}>
+            <div className="side__bar">
+              <h2 className="ov-news__title">{newsHeading}</h2>
+              <button type="button" className="at-btn at-toggle" aria-expanded={newsOpen} aria-controls={newsBodyId} onClick={() => setNewsOpen((o) => !o)}>
+                <span aria-hidden="true">{newsOpen ? "▾" : "▴"}</span>
+                <span>{newsOpen ? "Hide" : "Show"}</span>
+                <span className="sr-only"> news</span>
+              </button>
+            </div>
+            {/* keyed so a new planet or topic starts at the top of its stories */}
+            <div key={sel ?? planet} id={newsBodyId} className="side__body" hidden={!newsOpen}>
+              <News provider={provider} lay={lay} ids={sel ? [sel] : sm.planets[planet].topics} heading={newsHeading} showTopic={!sel} hideHeading onRead={ctx.read} />
+            </div>
+          </aside>
+        )}
         {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
 
         <p id="atlas-kbd" className="sr-only">

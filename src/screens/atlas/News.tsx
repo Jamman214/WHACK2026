@@ -37,8 +37,10 @@ function reason(lay: Layout, topicId: string): string {
 const SHOWN = 4;
 
 /** A "News" block: skeletons while loading, an empty state, then cards with a link out. */
-export default function News({ provider, lay, ids, heading, showTopic, onRead }: {
+export default function News({ provider, lay, ids, heading, showTopic, hideHeading, onRead }: {
   provider: NewsProvider; lay: Layout; ids: string[]; heading: string; showTopic: boolean;
+  /** The surrounding panel already shows the heading, so keep it for screen readers only. */
+  hideHeading?: boolean;
   /** A story was opened: its topic is what the reader just read about. */
   onRead?: (topicId: string) => void;
 }) {
@@ -48,7 +50,7 @@ export default function News({ provider, lay, ids, heading, showTopic, onRead }:
   const shown = items ? (all ? items : items.slice(0, SHOWN)) : [];
   return (
     <section className="sec news" aria-labelledby={hid} aria-busy={!items}>
-      <h3 id={hid}>{heading}</h3>
+      <h3 id={hid} className={hideHeading ? "sr-only" : undefined}>{heading}</h3>
       {!items ? (
         <ul className="news__list" aria-label="Loading stories">
           {[0, 1].map((i) => (

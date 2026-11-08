@@ -33,8 +33,9 @@
   .atlas .ov { background: color-mix(in srgb, var(--surface) 97%, transparent); }
 }
 
-/* top-left stack: back button + title, then breadcrumb */
-.atlas .ov-tl { position: absolute; top: 16px; left: 16px; width: 340px; display: grid; gap: 10px; pointer-events: none; z-index: 3; }
+/* left column: back button + title, then breadcrumb, then the exploration panel taking what height is left */
+.atlas .ov-left { position: absolute; top: 16px; bottom: 16px; left: 16px; width: clamp(360px, 30vw, 400px); display: flex; flex-direction: column; gap: 10px; pointer-events: none; z-index: 3; }
+.atlas .ov-tl { flex: none; display: grid; gap: 10px; pointer-events: none; }
 .atlas .ov-head { display: grid; gap: 12px; padding: 14px; }
 .atlas .ov-head h1 { margin: 0; font: 700 24px/1.1 var(--display); letter-spacing: -0.01em; color: var(--fg); }
 .atlas .ov-head .sub { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
@@ -122,11 +123,14 @@
 .atlas .srch__dist[data-ring="in"] { color: var(--accent); font-weight: 600; }
 
 /* ---- side panel: progress always visible, details collapsible ---- */
-.atlas .ov-side {
+.atlas .ov-side { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; }
+/* news: its own panel on the right, so reading sits beside exploring */
+.atlas .ov-news {
   position: absolute; top: 16px; right: 16px; width: clamp(360px, 30vw, 400px); max-height: calc(100% - 32px);
   display: flex; flex-direction: column; overflow: hidden; overflow: clip;
 }
-.atlas .ov-side[data-open="false"] { width: 300px; }
+.atlas .ov-news[data-open="false"] { width: 300px; }
+.atlas .ov-news__title { flex: 1; min-width: 0; margin: 0; font: 700 17px/1.2 var(--display); text-wrap: balance; }
 .atlas .side__bar { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; }
 .atlas .side__body {
   min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 12px; align-content: start;
@@ -331,8 +335,8 @@
 
 /* ---- map key: hidden behind a ? button, shown in a modal ---- */
 .atlas .at-helpbtn--round {
-  position: absolute; left: 16px; bottom: 16px; width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
-  border-radius: 50%; cursor: pointer; font: 700 20px/1 var(--display); color: var(--fg);
+  flex: none; width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
+  border: 1px solid var(--ctl-line); border-radius: 50%; background: var(--surface); cursor: pointer; font: 700 20px/1 var(--display); color: var(--fg);
 }
 .atlas .at-helpbtn--round:hover { border-color: var(--accent); }
 .atlas .at-helpbtn--wide { display: none; justify-self: start; }
@@ -363,7 +367,8 @@
 /* ---- phones: slim top bar, bottom sheet ---- */
 @media (max-width: 767px) {
   .atlas .ov-search { top: max(8px, env(safe-area-inset-top)); left: 8px; right: 8px; width: auto; transform: none; }
-  .atlas .ov-tl { top: calc(max(8px, env(safe-area-inset-top)) + 56px); left: 8px; right: 8px; width: auto; gap: 8px; }
+  .atlas .ov-left { display: contents; }
+  .atlas .ov-tl { position: absolute; z-index: 3; top: calc(max(8px, env(safe-area-inset-top)) + 56px); left: 8px; right: 8px; width: auto; gap: 8px; }
   .atlas .ov-head { display: flex; align-items: center; gap: 12px; padding: 8px; }
   .atlas .ov-head .sub, .atlas .at-back kbd { display: none; }
   .atlas .ov-head h1 { font-size: 20px; }
@@ -372,8 +377,7 @@
   .atlas .at-back { width: auto; min-height: 44px; padding: 0 14px; font-size: 15px; flex: none; }
   .atlas .srch__list { max-height: 46dvh; }
 
-  .atlas .ov-side { top: auto; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; max-height: 46dvh; }
-  .atlas .ov-side[data-open="false"] { width: auto; }
+  .atlas .ov-side { position: absolute; z-index: 3; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); max-height: 46dvh; }
   .atlas .side__bar { padding: 10px 10px 10px 14px; }
   .atlas .at-helpbtn--round { display: none; }
   .atlas .at-helpbtn--wide { display: inline-flex; }
