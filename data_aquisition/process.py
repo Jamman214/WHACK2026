@@ -20,8 +20,10 @@ HERE = Path(__file__).resolve().parent
 load_dotenv(HERE / ".env")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-EMBED_MODEL = "google/embeddinggemma-2"
-EMBED_DIM = 768
+# bge-small: ~28 articles/s on this CPU (~9 min for 15k). EmbeddingGemma 2 clustered tighter
+# but ran ~2/s (no hardware bf16), i.e. ~2 h for 15k.
+EMBED_MODEL = "BAAI/bge-small-en-v1.5"
+EMBED_DIM = 384
 NAME_MODEL = os.getenv("NAME_MODEL", "gemini-3.5-flash-lite")
 HEADLINES_PER_NAME = 8
 
@@ -40,15 +42,11 @@ def embed_new(conn):
         logging.info("No new articles to embed")
         return
 
-    import torch  # slow imports; skip when nothing to do
-    from sentence_transformers import SentenceTransformer
-    # bfloat16 halves RAM (model is 740M params; float16 is unsupported); skipping the
-    # vision/audio encoders saves more. Loader still needs pillow + torchvision installed.
-    model = SentenceTransformer(EMBED_MODEL, device="cpu",
-                                model_kwargs={"torch_dtype": torch.bfloat16},
-                                config_kwargs={"vision_config": None, "audio_config": None})
+    from sentence_transformers import SentenceTransformer  # slow import; skip when nothing to do
+    model = SentenceTransformer(EMBED_MODEL, device="cpu")
+    model.max_seq_length = 256  # title + description fits; caps the odd very long summary
     texts = [f"{title}. {desc or ''}" for _, title, desc in rows]
-    vecs = model.encode(texts, prompt_name="Clustering", batch_size=16,
+    vecs = model.encode(texts, batch_size=32,
                         normalize_embeddings=True, show_progress_bar=True).astype(np.float32)
 
     with conn:

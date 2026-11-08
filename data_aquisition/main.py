@@ -4,6 +4,7 @@ import html
 import re
 import hashlib
 import logging
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -25,12 +26,9 @@ logging.basicConfig(
 )
 
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
-FREENEWSAPI_KEY = os.getenv("FREENEWSAPI_KEY")
 DAYS_BACK = int(os.getenv("DAYS_BACK", "7"))
-NEWSAPI_QUERY = os.getenv("NEWSAPI_QUERY", "technology")
 
 NEWSAPI_URL = "https://newsapi.org/v2/everything"
-FREENEWSAPI_URL = "https://api.freenewsapi.io/v1/news"
 
 NOW = datetime.now(timezone.utc)
 CUTOFF = NOW - timedelta(days=DAYS_BACK)
@@ -108,15 +106,6 @@ def strip_html(text):
     # RSS summaries often embed <p>/<img> tags; embeddings want plain text
     text = re.sub(r"<[^>]+>", " ", str(text or ""))
     return re.sub(r"\s+", " ", html.unescape(text)).strip()
-
-
-def get_value(article, *keys):
-    """Return the first non-empty matching field."""
-    for key in keys:
-        value = article.get(key)
-        if value:
-            return value
-    return None
 
 
 # ---------------------------------------
@@ -241,138 +230,91 @@ def fetch_rss():
 # 3. NewsAPI
 # ---------------------------------------
 
-def fetch_newsapi():
-    logging.info("Fetching NewsAPI articles...")
+# One "top 100 most popular" request per region per day, via `domains`.
+# Only outlets NewsAPI's free index actually returned in probes on 2026-11-08: it has almost
+# nothing from South America / North Africa and no UK press besides the BBC. Regional variety
+# comes from RSS (feeds.txt). Times of India left out: ~1700/day of city news swamped everything.
+NEWSAPI_REGIONS = {
+    "uk": ["bbc.co.uk"],
+    "europe": ["dw.com", "irishtimes.com", "rte.ie", "elpais.com", "politico.eu", "repubblica.it",
+               "protothema.gr"],
+    "north_america": ["npr.org", "cbsnews.com", "nbcnews.com", "abcnews.com", "apnews.com",
+                      "foxnews.com", "nypost.com", "cbc.ca"],
+    "middle_east": ["aljazeera.com", "hurriyetdailynews.com", "haaretz.com", "israelnationalnews.com"],
+    "asia": ["channelnewsasia.com", "straitstimes.com"],
+    "oceania": ["abc.net.au", "nzherald.co.nz", "news.com.au"],
+    "africa": ["punchng.com", "timeslive.co.za"],
+}
+NEWSAPI_MAX = 100   # free plan: 100 results per query in total, page 2 is refused
 
+
+def newsapi_get(url, params):
+    """One API call = one of the 100 daily requests. Raises RuntimeError on API errors."""
+    response = requests.get(
+        url,
+        params=params,
+        headers={"X-Api-Key": NEWSAPI_KEY},  # header, not URL, so the key never lands in logs
+        timeout=20
+    )
+    data = response.json()
+    if data.get("status") != "ok":
+        raise RuntimeError(f"{data.get('code')}: {data.get('message')}")
+    return data
+
+
+def fetch_newsapi(days, budget, only=None):
+    """Top 100 most popular articles per region per UTC day, for the `days` days before today
+    (today is skipped: the free plan delays articles 24h). Newest day first, so a short
+    budget drops the oldest days. Returns (articles, requests_used).
+    """
     if not NEWSAPI_KEY:
         logging.warning("NEWSAPI_KEY not configured")
-        return []
+        return [], 0
 
-    params = {
-        "from": CUTOFF.strftime("%Y-%m-%d"),
-        "to": NOW.strftime("%Y-%m-%d"),
-        "sortBy": "publishedAt",
-        "pageSize": 100,
-        "language": "en"
-    }
+    regions = [only] if only else list(NEWSAPI_REGIONS)
+    articles, used = [], 0
 
-    if NEWSAPI_QUERY:
-        params["q"] = NEWSAPI_QUERY
+    for days_ago in range(1, days + 1):
+        day = (NOW - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+        for region in regions:
+            if used >= budget:
+                logging.warning("NewsAPI budget used up at %s %s", day, region)
+                return articles, used
+            used += 1
+            try:
+                data = newsapi_get(NEWSAPI_URL, {
+                    "domains": ",".join(NEWSAPI_REGIONS[region]),
+                    "from": day,
+                    "to": day,
+                    "sortBy": "popularity",
+                    "pageSize": NEWSAPI_MAX,
+                })
+            except RuntimeError as error:
+                logging.error("NewsAPI stopped: %s", error)  # bad key / quota gone: later calls fail too
+                return articles, used
+            except (requests.RequestException, ValueError) as error:
+                logging.error("NewsAPI %s %s failed: %s", day, region, error)
+                continue
 
-    try:
-        response = requests.get(
-            NEWSAPI_URL,
-            params=params,
-            headers={"X-Api-Key": NEWSAPI_KEY},  # header, not URL, so the key never lands in logs
-            timeout=20
-        )
-        response.raise_for_status()
+            got = [
+                article for item in data.get("articles", [])
+                if (article := make_article(
+                    title=item.get("title"),
+                    description=item.get("description"),
+                    url=item.get("url"),
+                    image=item.get("urlToImage"),
+                    source=(item.get("source") or {}).get("name"),
+                    provider="NewsAPI",
+                    published_at=item.get("publishedAt")
+                ))
+            ]
+            per_source = Counter(a["source"] for a in got).most_common()
+            logging.info("NewsAPI %s %-18s %3d of %s: %s", day, region, len(got),
+                         data.get("totalResults"), ", ".join(f"{n} {c}" for n, c in per_source))
+            articles += got
 
-        data = response.json()
-
-        if data.get("status") != "ok":
-            logging.warning("NewsAPI error: %s", data.get("message"))
-            return []
-
-        articles = []
-
-        for item in data.get("articles", []):
-            article = make_article(
-                title=item.get("title"),
-                description=item.get("description"),
-                url=item.get("url"),
-                image=item.get("urlToImage"),
-                source=(item.get("source") or {}).get("name"),
-                provider="NewsAPI",
-                published_at=item.get("publishedAt")
-            )
-
-            if article:
-                articles.append(article)
-
-        logging.info("NewsAPI returned %d articles", len(articles))
-        return articles
-
-    except requests.RequestException as error:
-        logging.error("NewsAPI request failed: %s", error)
-        return []
-
-
-# ---------------------------------------
-# 4. FreeNewsAPI
-# ---------------------------------------
-
-def fetch_freenewsapi():
-    logging.info("Fetching FreeNewsAPI articles...")
-
-    if not FREENEWSAPI_KEY:
-        logging.warning("FREENEWSAPI_KEY not configured")
-        return []
-
-    params = {
-        "language": "en",
-        "order_by": "recent",
-        "published_after": CUTOFF.isoformat(),
-        "published_before": NOW.isoformat(),
-        "offset": 0
-    }
-
-    headers = {
-        "x-api-key": FREENEWSAPI_KEY
-    }
-
-    try:
-        response = requests.get(
-            FREENEWSAPI_URL,
-            params=params,
-            headers=headers,
-            timeout=20
-        )
-        response.raise_for_status()
-
-        data = response.json()
-
-        # FreeNewsAPI uses a data array in its documented response
-        items = data.get("data", [])
-
-        articles = []
-
-        for item in items:
-            publisher = item.get("publisher", "Unknown")
-
-            if isinstance(publisher, dict):
-                publisher = publisher.get("name", "Unknown")
-
-            article = make_article(
-                title=item.get("title"),
-                description=get_value(
-                    item, "description", "subtitle", "summary"
-                ),
-                url=get_value(
-                    item, "url", "link", "article_url"
-                ),
-                image=get_value(
-                    item, "image", "image_url", "thumbnail"
-                ),
-                source=publisher,
-                provider="FreeNewsAPI",
-                published_at=get_value(
-                    item, "published_at", "publishedAt"
-                )
-            )
-
-            if article:
-                articles.append(article)
-
-        logging.info(
-            "FreeNewsAPI returned %d articles",
-            len(articles)
-        )
-        return articles
-
-    except requests.RequestException as error:
-        logging.error("FreeNewsAPI request failed: %s", error)
-        return []
+    logging.info("NewsAPI returned %d articles in %d requests", len(articles), used)
+    return articles, used
 
 
 # ---------------------------------------
@@ -443,30 +385,30 @@ def save_articles(articles):
 
 def main():
     logging.info("Starting news aggregator...")
+    articles = fetch_rss()
+    unique = deduplicate(articles)
+    added = save_articles(unique)
+    print(f"\nRSS: {len(articles)}  after dedup: {len(unique)}  new in DB: {added}\n")
 
-    rss_articles = fetch_rss()
-    newsapi_articles = fetch_newsapi()
-    freenewsapi_articles = fetch_freenewsapi()
 
-    all_articles = (
-        rss_articles
-        + newsapi_articles
-        + freenewsapi_articles
-    )
-
-    unique_articles = deduplicate(all_articles)
-
-    added = save_articles(unique_articles)
-
-    print("\n========== NEWS SUMMARY ==========")
-    print(f"RSS:          {len(rss_articles)}")
-    print(f"NewsAPI:      {len(newsapi_articles)}")
-    print(f"FreeNewsAPI:  {len(freenewsapi_articles)}")
-    print(f"Before dedup: {len(all_articles)}")
-    print(f"After dedup:  {len(unique_articles)}")
-    print(f"New in DB:    {added}")
-    print("==================================\n")
+def main_newsapi(days, budget, only):
+    articles, used = fetch_newsapi(days, budget, only)
+    unique = deduplicate(articles)
+    added = save_articles(unique)
+    print(f"\nNewsAPI: {len(articles)} in {used} requests  after dedup: {len(unique)}  new in DB: {added}\n")
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    cli = argparse.ArgumentParser(description="No command: RSS only (safe hourly, no API quota).")
+    sub = cli.add_subparsers(dest="cmd")
+    na = sub.add_parser("newsapi", help="top 100 per region per day (1 request each; 100/day quota)")
+    na.add_argument("--days", type=int, default=1, help="days before today to fetch (default 1 = yesterday)")
+    na.add_argument("--max", type=int, default=60, help="request budget for this run (default 60)")
+    na.add_argument("--only", choices=list(NEWSAPI_REGIONS), help="one region instead of all")
+    args = cli.parse_args()
+
+    if args.cmd == "newsapi":
+        main_newsapi(args.days, args.max, args.only)
+    else:
+        main()
