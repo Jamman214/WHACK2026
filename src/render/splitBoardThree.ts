@@ -30,11 +30,11 @@ export interface SplitBoardScene {
 }
 
 const BALL_R = 5;
-const BALL_Z = 5.5;     // ball centre height above the backboard
-const PEG_D = 10;       // pegs and walls stand this far off the backboard
-const WALL_D = 13;
+const BALL_Z = 9;       // ball centre height above the backboard
+const PEG_D = 17;       // pegs and walls stand this far off the backboard
+const WALL_D = 24;
 const FOV = 24;
-const TILT_Y = 46;      // camera height above the board centre: a few degrees of tilt
+const TILT_Y = 64;      // camera height above the board centre: a few degrees of tilt
 const CAM_MARGIN = 1.03; // breathing room so tilt, shadows and parallax never clip
 const ease = 0.12;
 const PEG_PING_MS = 520; // how long a struck peg keeps wobbling
@@ -77,11 +77,11 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
   const hemi = new HemisphereLight(0xffffff, 0x8a93a6, 1.1);
   const ambient = new AmbientLight(0xffffff, 0.5);
   const sun = new DirectionalLight(0xffffff, 1.6);
-  sun.position.set(-90, 140, 220);
+  sun.position.set(-130, 170, 190); // lower and more from the side: longer, more offset shadows read as height
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -280, right: 280, top: 160, bottom: -160, near: 50, far: 700 });
-  sun.shadow.radius = 5;
+  sun.shadow.radius = 7;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.3;
   scene.add(hemi, ambient, sun);
@@ -89,7 +89,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
   // ---- materials (shared; recoloured by setTokens)
   const std = (roughness: number, metalness = 0) => new MeshStandardMaterial({ roughness, metalness });
   const mats = {
-    shadow: new ShadowMaterial({ opacity: 0.2 }),
+    shadow: new ShadowMaterial({ opacity: 0.3 }),
     wall: std(0.55),
     peg: std(0.4, 0.15),
     bucketS: std(0.55),   // hopper + bucket per side, so each can glow on its own
@@ -160,7 +160,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
 
   // gate: a bar tilted by `flip` (no visible pivot)
   const gate = new Group();
-  gate.position.set(wx(cx), wy(gateY), 2.4);
+  gate.position.set(wx(cx), wy(gateY), 4);
   const gateBar = new Mesh(track(new CapsuleGeometry(1.8, 28, 4, 12)), mats.accent);
   gateBar.rotation.z = Math.PI / 2;
   gateBar.castShadow = true;
@@ -188,7 +188,7 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     halo.renderOrder = -1;
     halo.visible = false;
     const light = new PointLight(0xffffff, 0, 150, 2);
-    light.position.set(wx((R.x0 + R.x1) / 2), wy(yB + bH / 2), 30);
+    light.position.set(wx((R.x0 + R.x1) / 2), wy(yB + bH / 2), 40);
     board.add(halo, light);
     return { mat, halo, light, emissive: seen ? mats.bucketS : mats.bucketU };
   };
@@ -249,8 +249,8 @@ export function createSplitBoardScene(container: HTMLElement, tk: BoardTokens): 
     lastGlow = { seen: -1, unseen: -1 };
     mats.peg.color.copy(peg);
     mats.accent.color.set(t.accent);
-    mats.shadow.opacity = dark ? 0.5 : 0.22;
     for (const bm of ballMeshes.values()) bm.g.userData.settled = false; // recolour settled balls too
+    mats.shadow.opacity = dark ? 0.65 : 0.34;
     hemi.intensity = dark ? 1.0 : 1.15;
     hemi.groundColor.set(dark ? 0x3a4150 : 0x9aa2b2);
     sun.intensity = dark ? 1.5 : 1.55;
