@@ -221,7 +221,6 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
 
   const summary = (() => {
     const { seen: s, unseen: u } = counts;
-    if (!s && !u) return <>Sort a headline to tip the gate.</>;
     return <><b>{s}</b> in your feed · <b>{u}</b> outside it · {Math.round((100 * u) / (s + u))}% of the sample is a blind spot</>;
   })();
 
@@ -231,8 +230,7 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
       <div className="wrap">
         <header>
           <div>
-            <div className="eyebrow">WHACK · step 1 of 2</div>
-            <h1>Drop the headlines</h1>
+            <h1>Let's test your knowledge</h1>
           </div>
         </header>
 
