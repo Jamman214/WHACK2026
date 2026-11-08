@@ -202,14 +202,8 @@ export default function Onboarding({ autoDemo = false, onDone }: Props) {
         </p>
 
         <div className="deck">
-          <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "")} ref={cardRef} key={idx}>
-            {done ? (
-              <>
-                <div className="cat">All {DECK.length} sorted</div>
-                <div className="hl">That's your bubble, sorted. Next stop: the stories outside it.</div>
-                <div className="meta">Press Reset to run it again</div>
-              </>
-            ) : (
+          <div className={"card" + (idx > 0 && !reduceMotion() ? " enter" : "") + (done ? " gone" : "")} ref={cardRef} key={idx} aria-hidden={done || undefined}>
+            {done ? null : (
               <>
                 <div className="cat">{TOPIC_BY_ID[h.topicId].name}</div>
                 <div className="hl">{h.headline}</div>

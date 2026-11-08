@@ -56,6 +56,8 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 .theme-board .card .hl { font-family: var(--display); font-weight: 500; font-size: 21px; line-height: 1.25; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .theme-board .card .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: auto; }
 /* fade only: a translate here would move the card's box while the user is reaching for the buttons */
+/* once everything is sorted the card disappears but keeps its box, so the buttons and board below never move */
+.theme-board .card.gone { visibility: hidden; }
 .theme-board .card.enter { animation: card-enter 0.28s ease-out; }
 @keyframes card-enter { from { opacity: 0; } to { opacity: 1; } }
 .theme-board .choices { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
