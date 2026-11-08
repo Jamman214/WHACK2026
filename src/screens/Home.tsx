@@ -3,22 +3,21 @@ import { fetchBubble, type Swipe } from "../data/api";
 import { DEFAULT_STRENGTH, MODEL } from "../data/model";
 import { edgeReason } from "../data/reasons";
 import { TOPICS, TOPIC_BY_ID } from "../data/taxonomy";
-import { DISTANCES, Feed, backendProvider as provider, type FeedCardModel } from "../feed";
+import { Edition, backendProvider as provider, type FeedCardModel } from "../feed";
 import { saveBubble } from "../lib/bubbleStore";
 import { layout, nearbyTopics, reachablePath } from "../lib/layout";
 import { bubbleAfterRead } from "../lib/reading";
 import Atlas, { type AtlasFocus } from "./Atlas";
 import Toast from "./atlas/Toast";
 import { plural } from "./atlas/util";
-import MiniMap from "./MiniMap";
 
 const topicName = (id: string) => TOPIC_BY_ID[id]?.name ?? id;
 
 interface Props { initialBubble: string[]; history: Swipe[]; onRedo: () => void }
 
-/** Primary screen: the news feed, with a mini-map beside it (desktop) and the full Atlas as a sheet. */
+/** Primary screen: today's edition (date, grouped stories, the thread and the story), with the full Atlas as a sheet. */
 export default function Home({ initialBubble, history, onRedo }: Props) {
-  // Lifted here (not in Atlas) so reading a story (feed or map) reshapes the feed.
+  // Lifted here (not in Atlas) so reading a story (edition or map) reshapes the edition.
   const [bubble, setBubble] = useState(initialBubble);
   // The backend owns the bubble: map adds/removes are sent with the onboarding swipes and its answer wins.
   // The starting bubble is pinned too, so an onboarding fallback bubble survives the round trip.
@@ -35,14 +34,11 @@ export default function Home({ initialBubble, history, onRedo }: Props) {
       (e) => console.error("bubble", e),
     );
   };
-  // The Atlas is only mounted while the map is open, so the feed saves the bubble itself.
+  // The Atlas is only mounted while the map is open, so the edition saves the bubble itself.
   useEffect(() => { saveBubble(bubble); }, [bubble]);
   const [toast, setToast] = useState<{ id: number; message: string; prev: string[] } | null>(null);
   const toastId = useRef(0);
   const dismissToast = useCallback(() => setToast(null), []);
-  const [dist, setDist] = useState(0);
-  const [active, setActive] = useState<FeedCardModel | null>(null);
-  const [pulse, setPulse] = useState<string | null>(null);
   const [map, setMap] = useState<{ open: boolean; focus?: AtlasFocus }>({ open: false });
 
   const lay = useMemo(() => layout(MODEL, bubble, DEFAULT_STRENGTH), [bubble]);
@@ -62,59 +58,34 @@ export default function Home({ initialBubble, history, onRedo }: Props) {
   };
   const undoRead = () => { if (toast) changeBubble(toast.prev); setToast(null); };
 
-  const openAtActive = () => {
-    const path = active?.placement.kind === "bridge" ? active.placement.path : active ? [active.topicId] : [];
-    setMap({ open: true, focus: active ? { sel: active.topicId, center: path } : undefined });
-  };
-  const onChipClick = useCallback((id: string, cardTopic: string) => setMap({ open: true, focus: { sel: cardTopic, center: [id] } }), []);
-  const onMapOpenChange = useCallback((open: boolean) => setMap({ open }), []);
-  const d = DISTANCES[dist];
+  const onOpenMap = useCallback((focus?: AtlasFocus) => setMap({ open: true, focus }), []);
+  const onCloseMap = useCallback(() => setMap({ open: false }), []);
 
   return (
     <div className="screen theme-board fade home">
-      <div className="home__feed">
-        <div className="dist">
-          <label className="dist__label" htmlFor="dist">How far out</label>
-          <input id="dist" type="range" min={0} max={DISTANCES.length - 1} step={1} value={dist}
-            onChange={(e) => setDist(+e.target.value)} aria-valuetext={d.label} />
-          <div className="dist__stops">
-            {DISTANCES.map((s, i) => (
-              <span key={s.label} className={i === dist ? "on" : ""} onClick={() => setDist(i)}>{s.label}</span>
-            ))}
+      <Edition
+        known={bubble}
+        candidates={candidates}
+        provider={provider}
+        pathTo={pathTo}
+        topicName={topicName}
+        reason={edgeReason}
+        onRead={onRead}
+        mapOpen={map.open}
+        onOpenMap={onOpenMap}
+        onCloseMap={onCloseMap}
+        map={
+          <div className="home__map">
+            <Atlas bubble={bubble} onBubbleChange={changeBubble} initialBubble={initialBubble} onRedo={onRedo} focus={map.focus}
+              provider={provider} onClose={onCloseMap} />
           </div>
+        }
+      />
+      {toast && !map.open && (
+        <div className="theme-atlas atlas home__toast">
+          <Toast key={toast.id} message={toast.message} onUndo={undoRead} onDismiss={dismissToast} />
         </div>
-        <Feed
-          known={bubble}
-          candidates={candidates}
-          provider={provider}
-          pathTo={pathTo}
-          topicName={topicName}
-          mix={d.mix}
-          reason={edgeReason}
-          onActiveChange={setActive}
-          onChipHover={setPulse}
-          onChipClick={onChipClick}
-          onRead={onRead}
-          mapOpen={map.open}
-          onMapOpenChange={onMapOpenChange}
-          mapHasOwnClose
-          map={
-            <div className="home__map">
-              <Atlas bubble={bubble} onBubbleChange={changeBubble} initialBubble={initialBubble} onRedo={onRedo} focus={map.focus}
-                provider={provider} onClose={() => setMap({ open: false })} />
-            </div>
-          }
-        />
-        {toast && !map.open && (
-          <div className="theme-atlas atlas home__toast">
-            <Toast key={toast.id} message={toast.message} onUndo={undoRead} onDismiss={dismissToast} />
-          </div>
-        )}
-      </div>
-      <aside className="home__mini">
-        <MiniMap lay={lay} thr={DEFAULT_STRENGTH} card={active} reach={d.ring} reachLabel={d.label}
-          pulseId={pulse} onOpen={openAtActive} />
-      </aside>
+      )}
     </div>
   );
 }
