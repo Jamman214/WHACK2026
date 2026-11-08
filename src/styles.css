@@ -176,12 +176,12 @@ body { font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
 /* The Atlas fills the feed's full-screen sheet; its own overlays scroll, the page never does. */
 .home__map { height: 100%; overflow: hidden; }
 
-/* Ring colours: how far outside the bubble (badges, mini-map path). */
-.theme-board { --ring-1: #0f766e; --ring-2: #b45309; --ring-3: #be185d; }
+/* Ring colours: one ordered amber-to-rust ramp (no pure red, so it never reads as an error) for how far outside the bubble (card rail, mini-map path). Blue stays reserved for home. */
+.theme-board { --ring-1: #a8700a; --ring-2: #c2570c; --ring-3: #8f3f0c; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .theme-board { --ring-1: #2dd4bf; --ring-2: #fbbf24; --ring-3: #f472b6; }
+  :root:not([data-theme="light"]) .theme-board { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
 }
-:root[data-theme="dark"] .theme-board { --ring-1: #2dd4bf; --ring-2: #fbbf24; --ring-3: #f472b6; }
+:root[data-theme="dark"] .theme-board { --ring-1: #d1a63f; --ring-2: #f0983a; --ring-3: #ee7b3a; }
 
 /* Split view: feed ~60% / sticky mini-map ~40%; mini-map hidden on small screens. */
 .home { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); height: 100dvh; overflow: hidden; }
