@@ -12,7 +12,7 @@ People who want to know more than they do now. Most of their news reaches them t
 The current build is a demo for WHACK 2026, but design decisions are judged against this reader, not against the demo audience.
 
 ## Product Purpose
-It shows people stories from outside their filter bubble and gives them a recommended way to explore past it. Onboarding works out what's already in the reader's feed. The news feed then mixes stories they already know with "bridge" stories one or more steps out, and the Topic Atlas shows how far every subject is from what they know. Readers can add topics to their bubble, and the feed re-ranks around the bigger bubble.
+It shows people stories from outside their filter bubble and gives them a recommended way to explore past it. Onboarding works out what's already in the reader's feed. The news feed then mixes stories they already know with "bridge" stories one or more steps out, and the Topic Atlas shows how far every subject is from what they know. Reading a story from outside the bubble brings its topic in (with Undo, and a Remove on the map), and the feed re-ranks around the bigger bubble.
 
 It works when a reader can see at a glance where their knowledge stops, how far new knowledge is, and what step to take next.
 
