@@ -17,10 +17,10 @@ import { CATEGORIES, LINKS, TOPICS, type Category, type CategoryId, type Topic }
 import { MODEL } from "../data/model";
 import type { Layout } from "../lib/layout";
 import { TWEEN_MS, easeInOut, orbitLabel, stepsPhrase } from "../lib/atlasStyle";
-import { solarModel, solarPositions, type SolarModel, type SolarPositions } from "../lib/solar";
+import { MOON_R, MOON_RING, MOON_RING_IN, MOON_RING_OUT, moonLayout, solarModel, solarPositions, type SolarModel, type SolarPositions } from "../lib/solar";
 import { FatLine } from "./atlas/fatline";
 import {
-  ATMO_FRAG, ATMO_VERT, DOT_FRAG, DOT_VERT, GLOW_FRAG, GLOW_VERT, PLANET_FRAG, PLANET_VERT, RING_FRAG, STAR_FRAG, STAR_VERT, SUN_FRAG,
+  ATMO_FRAG, ATMO_VERT, DOT_FRAG, DOT_VERT, GLOW_FRAG, GLOW_VERT, MOON_FRAG, MOON_VERT, PLANET_FRAG, PLANET_VERT, RING_FRAG, STAR_FRAG, STAR_VERT, SUN_FRAG,
 } from "./atlas/shaders";
 
 export type PlanetKey = CategoryId | "home";
@@ -75,7 +75,9 @@ interface TopicObj {
   pl: PlanetObj;
   dir: THREE.Vector3; // local direction on the planet
   homeDir: THREE.Vector3; // local direction on the sun
-  pos: THREE.Vector3; // world position of the planet dot
+  pos: THREE.Vector3; // world position of the moon
+  moon: THREE.Vector3; // moon offset from the planet centre, in planet radii (ring plane = xy)
+  mr: number; // current world radius of the moon
   hpos: THREE.Vector3; // world position of the home dot
   el: HTMLButtonElement;
   w: number; h: number;
@@ -176,6 +178,12 @@ export class AtlasThree {
   private disposed = false;
   private needMeasure = true;
   private pxScale = 1000;
+  private readonly moonQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), sphericalDir(PLANET_POLAR, 0));
+  private moonMesh!: THREE.InstancedMesh;
+  private moonCol!: THREE.InstancedBufferAttribute;
+  private moonAlpha!: THREE.InstancedBufferAttribute;
+  private moonLines: THREE.LineLoop[] = [];
+  private readonly _mm = new THREE.Matrix4();
   private geomDirty = true;
   private sysRadius = 600;
 
@@ -205,7 +213,6 @@ export class AtlasThree {
   private readonly _a = new THREE.Vector3();
   private readonly _b = new THREE.Vector3();
   private readonly _c = new THREE.Vector3();
-  private readonly _q = new THREE.Quaternion();
   private readonly _lit = new THREE.Color();
   private readonly _dimC = new THREE.Color();
   private readonly _pale = new THREE.Color(0xfff6d6);
@@ -318,6 +325,32 @@ export class AtlasThree {
       this.dots.frustumCulled = false;
       this.dots.renderOrder = 6;
       this.scene.add(this.dots);
+    }
+
+    // moons: one instanced sphere mesh, plus two faint orbit lines for the focused planet
+    {
+      const geo = new THREE.SphereGeometry(1, 20, 14), n = N_TOPICS;
+      this.moonCol = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3);
+      this.moonAlpha = new THREE.InstancedBufferAttribute(new Float32Array(n), 1);
+      this.moonCol.setUsage(THREE.DynamicDrawUsage); this.moonAlpha.setUsage(THREE.DynamicDrawUsage);
+      geo.setAttribute("aCol", this.moonCol); geo.setAttribute("aAlpha", this.moonAlpha);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
+        vertexShader: MOON_VERT, fragmentShader: MOON_FRAG, transparent: true, fog: true,
+      });
+      this.moonMesh = new THREE.InstancedMesh(geo, mat, n);
+      this.moonMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.moonMesh.frustumCulled = false; this.moonMesh.renderOrder = 5; this.moonMesh.visible = false;
+      this.scene.add(this.moonMesh);
+      const pts: number[] = [];
+      for (let i = 0; i < 128; i++) pts.push(Math.cos((i / 128) * Math.PI * 2), Math.sin((i / 128) * Math.PI * 2), 0);
+      const lg = new THREE.BufferGeometry();
+      lg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+      for (let k = 0; k < 2; k++) {
+        const line = new THREE.LineLoop(lg, new THREE.LineBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+        line.visible = false; line.frustumCulled = false; line.renderOrder = 4;
+        this.scene.add(line); this.moonLines.push(line);
+      }
     }
 
     // faint planet-level connections shown on hover / focus
@@ -548,8 +581,11 @@ export class AtlasThree {
       i: TOPIC_INDEX[topic.id], topic, pl, el, w: 0, h: 0, key: "", ring: Infinity,
       dir: capDir(j, pl.cat.topics.length, THREE.MathUtils.degToRad(64)),
       homeDir: capDir(TOPIC_INDEX[topic.id], N_TOPICS, THREE.MathUtils.degToRad(88)),
+      moon: new THREE.Vector3(), mr: 0,
       pos: new THREE.Vector3(), hpos: new THREE.Vector3(), px: 0, py: 0, vis: 0, hvis: 0,
     };
+    const m = moonLayout(pl.cat.topics.length)[j];
+    if (m) t.moon.set(m.x, m.y, m.z).applyQuaternion(this.moonQ);
     this.topics[t.i] = t;
     return t;
   }
@@ -728,7 +764,7 @@ export class AtlasThree {
         halo.setXYZW(t.i, c.r, c.g, c.b, near ? 0.4 : this.dark ? 0.16 : 0.12);
       }
       glow.setX(t.i, known || isSel ? 4.2 : 3.2);
-      ring.setX(t.i, isSel ? 1 : hov ? 0.85 : 0);
+      ring.setX(t.i, isSel ? 3 : hov ? 2.85 : 0); // >= 2: ring-only dot over the moon
       // the dot of this topic on the sun
       const h = N_TOPICS + t.i;
       col.setXYZ(h, lit.r, lit.g, lit.b);
@@ -814,27 +850,9 @@ export class AtlasThree {
     return this.flyers.length > 0 || !!this.pending;
   }
 
-  /** Where a planet should face so topic `id` points at the camera (planet view), or the default cap otherwise. */
-  private turnTo(id: string | null) {
-    if (!id || this.mode !== "planet") return;
-    const t = this.topics[TOPIC_INDEX[id]];
-    if (!t || t.pl.idx !== this.focusIdx) return;
-    const pl = t.pl, now = performance.now();
-    // the direction from the planet to where the camera is going (or is)
-    const toCam = this.cam ? sphericalDir(this.cam.to.polar, this.cam.to.az, this._a) : this._a.copy(this.camera.position).sub(pl.center).normalize();
-    const cur = this._b.copy(t.dir).applyQuaternion(pl.spin);
-    this._q.setFromUnitVectors(cur, toCam);
-    pl.spin0.copy(pl.spin);
-    pl.spin1.copy(this._q).multiply(pl.spin).normalize();
-    pl.spinT0 = now;
-    pl.spinning = !reduceMotion();
-    if (!pl.spinning) pl.spin.copy(pl.spin1);
-  }
+  private turnTo(_id: string | null) { /* moons are static: selecting one only highlights it */ }
 
-  private snapSpin(id: string) {
-    this.turnTo(id);
-    for (const pl of this.planets) if (pl.spinning) { pl.spin.copy(pl.spin1); pl.spinning = false; }
-  }
+  private snapSpin(_id: string) { /* see turnTo */ }
 
   /** Entering a planet view with no selection: face the default cap at the camera. */
   private applySpinFor(planet: PlanetKey | null) {
@@ -909,7 +927,7 @@ export class AtlasThree {
   private poseForMode(): Pose {
     if (this.mode === "planet" && this.focusIdx >= 0) {
       const pl = this.planets[this.focusIdx];
-      return { target: this.planetPos(pl.p1, new THREE.Vector3()), radius: this.fitDistance(pl.p1.r * U, PLANET_FILL), polar: PLANET_POLAR, az: 0 };
+      return { target: this.planetPos(pl.p1, new THREE.Vector3()), radius: this.fitDistance(this.moonExtent(pl, pl.p1.r * U), PLANET_FILL), polar: PLANET_POLAR, az: 0 };
     }
     if (this.mode === "home") {
       const r = (this.pos?.home.r ?? 1.8) * U;
@@ -932,7 +950,7 @@ export class AtlasThree {
     if (m === "flight") { c.minPolarAngle = 0.01; c.maxPolarAngle = Math.PI - 0.01; c.minDistance = 4; c.maxDistance = 40000; return; }
     if (m === "planet" && this.focusIdx >= 0) {
       const r = this.planets[this.focusIdx].p1.r * U;
-      c.minPolarAngle = 0.12; c.maxPolarAngle = Math.PI - 0.12; c.minDistance = r * 1.5; c.maxDistance = this.fitDistance(r, PLANET_FILL) * 2.4;
+      c.minPolarAngle = 0.12; c.maxPolarAngle = Math.PI - 0.12; c.minDistance = r * 1.5; c.maxDistance = this.fitDistance(this.moonExtent(this.planets[this.focusIdx], r), PLANET_FILL) * 2.4;
     } else if (m === "home") {
       const r = (this.pos?.home.r ?? 1.8) * U;
       c.minPolarAngle = MIN_POLAR; c.maxPolarAngle = MAX_POLAR; c.minDistance = r * 1.6; c.maxDistance = this.overviewR * 1.2;
@@ -1074,7 +1092,7 @@ export class AtlasThree {
       pl.atmo.position.copy(pl.center); pl.atmo.scale.setScalar(r * 1.13);
       pl.prog.position.copy(pl.center); pl.prog.scale.setScalar(r * 1.38); pl.prog.quaternion.copy(this.camera.quaternion);
       for (const t of pl.topics) {
-        t.pos.copy(t.dir).applyQuaternion(pl.spin).multiplyScalar(r * 1.012).add(pl.center);
+        t.pos.copy(t.moon).multiplyScalar(r).add(pl.center);
         pos.setXYZ(t.i, t.pos.x, t.pos.y, t.pos.z);
         t.hpos.copy(t.homeDir).applyQuaternion(this.homeSpin()).multiplyScalar(hr * 1.012);
         pos.setXYZ(N_TOPICS + t.i, t.hpos.x, t.hpos.y, t.hpos.z);
@@ -1226,10 +1244,43 @@ export class AtlasThree {
     // sun light on the planets
     for (const pl of this.planets) (pl.body.material as THREE.ShaderMaterial).uniforms.uSunPos.value.set(0, 0, 0);
 
+    this.updateMoons(camPos);
     this.writeFrameDots(camPos, now);
     this.layoutLabels(camPos);
     this.renderer.render(this.scene, cam);
   }
+
+  /** Moon spheres (min on-screen size) and the focused planet's orbit lines. */
+  private updateMoons(camPos: THREE.Vector3) {
+    const on = this.mode === "planet" && this.focusIdx >= 0 && this.fx.view > 0.02;
+    this.moonMesh.visible = on;
+    for (const l of this.moonLines) l.visible = false;
+    if (!on) return;
+    const fv = this.fx.view, sun = this.sunCol, lit = this._lit.copy(sun).lerp(this._pale, this.dark ? 0.5 : 0.25);
+    for (const t of this.topics) {
+      const focused = t.pl.idx === this.focusIdx;
+      if (!focused) { this._mm.makeScale(0, 0, 0); this.moonMesh.setMatrixAt(t.i, this._mm); this.moonAlpha.setX(t.i, 0); t.mr = 0; continue; }
+      const d = camPos.distanceTo(t.pos);
+      t.mr = Math.max(MOON_R * t.pl.p.r * U, (7 * d) / this.pxScale);
+      this._mm.makeScale(t.mr, t.mr, t.mr).setPosition(t.pos);
+      this.moonMesh.setMatrixAt(t.i, this._mm);
+      const c = t.ring === 0 ? lit : t.pl.color;
+      this.moonCol.setXYZ(t.i, c.r, c.g, c.b);
+      this.moonAlpha.setX(t.i, fv);
+    }
+    this.moonMesh.instanceMatrix.needsUpdate = true; this.moonCol.needsUpdate = true; this.moonAlpha.needsUpdate = true;
+    const pl = this.planets[this.focusIdx], r = pl.p.r * U, radii = pl.topics.length > 10 ? [MOON_RING_IN, MOON_RING_OUT] : [MOON_RING];
+    radii.forEach((R, k) => {
+      const l = this.moonLines[k];
+      l.visible = true;
+      l.position.copy(pl.center); l.quaternion.copy(this.moonQ); l.scale.setScalar(R * r);
+      const m = l.material as THREE.LineBasicMaterial;
+      m.color.copy(pl.color); m.opacity = 0.28 * fv * (this.dark ? 1 : 0.9);
+    });
+  }
+
+  /** Radius that frames the planet plus its outer moon ring. */
+  private moonExtent(pl: PlanetObj, r: number) { return r * ((pl.cat.topics.length > 10 ? MOON_RING_OUT : MOON_RING) + MOON_R); }
 
   /** Per-frame dot positions' size / alpha: constant screen size, fade on the far side, flyers. */
   private writeFrameDots(camPos: THREE.Vector3, now: number) {
@@ -1242,15 +1293,12 @@ export class AtlasThree {
     const dpx = (px: number, p: THREE.Vector3) => (px * camPos.distanceTo(p)) / this.pxScale;
     const homeSpin = this.homeSpin();
     for (const t of this.topics) {
-      const pl = t.pl, n = this._a.copy(t.dir).applyQuaternion(pl.spin);
-      const toCam = this._b.copy(camPos).sub(t.pos).normalize();
-      t.vis = smooth(0.02, 0.22, n.dot(toCam));
-      const known = t.ring === 0, isSel = t.topic.id === sel;
+      const pl = t.pl;
       const focused = planetMode && pl.idx === this.focusIdx;
-      const px = focused ? (isSel ? 10.5 : known ? 8 : 6.8) : planetMode ? 3 : known ? 4.4 : 3.2;
-      size.setX(t.i, dpx(px, t.pos));
-      const a = t.vis * (focused ? 1 : planetMode ? 0 : homeMode ? 0.5 * pl.dim : pl.dim) * (focused || this.mode === "overview" || homeMode ? 1 : 0);
-      alpha.setX(t.i, a * (known || focused ? 1 : 0.85));
+      t.vis = focused ? this.fx.view : 0;
+      const isSel = t.topic.id === sel, hov = t.topic.id === this.hoverTopic || t.topic.id === this.focusTopic;
+      size.setX(t.i, t.mr); // ring-only dot: the selection / hover ring around the moon
+      alpha.setX(t.i, focused && (isSel || hov) ? this.fx.view : 0);
 
       // the topic on the sun
       const hn = this._a.copy(t.homeDir).applyQuaternion(homeSpin);
@@ -1513,7 +1561,7 @@ export class AtlasThree {
   private pick(e: PointerEvent): { topic: string | null; planet: number } {
     const m = this.pointer(e);
     if (this.mode === "planet" || this.mode === "home") {
-      let best: TopicObj | null = null, bd = 20;
+      let best: TopicObj | null = null, bd = this.mode === "planet" ? 26 : 20;
       for (const t of this.topics) {
         const inPlanet = this.mode === "planet" && t.pl.idx === this.focusIdx;
         const inHome = this.mode === "home" && this.known.has(t.topic.id);

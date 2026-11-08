@@ -262,3 +262,29 @@ export function solarPositions(sm: SolarModel): SolarPositions {
 }
 
 export { angDiff as angularDistance };
+
+/** Moon radius as a fraction of its planet's radius. */
+export const MOON_R = 0.16;
+/** Outer-ring radius (planet radii) used by moonLayout for large counts; the single ring sits at MOON_RING. */
+export const MOON_RING = 2.0;
+export const MOON_RING_IN = 1.85;
+export const MOON_RING_OUT = 2.45;
+const MOON_SPLIT = 10;
+
+/**
+ * Static moon offsets in units of the planet radius, in a frame where the ring plane is xy (normal +z).
+ * Up to 10 moons share one ring; more alternate between an inner and an outer ring.
+ */
+export function moonLayout(count: number): { x: number; y: number; z: number; ring: number; radius: number }[] {
+  const out: { x: number; y: number; z: number; ring: number; radius: number }[] = [];
+  if (count <= 0) return out;
+  const two = count > MOON_SPLIT;
+  const n0 = two ? Math.ceil(count / 2) : count, n1 = count - n0;
+  for (let i = 0; i < count; i++) {
+    const ring = two ? i % 2 : 0, k = two ? Math.floor(i / 2) : i, n = ring === 0 ? n0 : n1;
+    const R = two ? (ring === 0 ? MOON_RING_IN : MOON_RING_OUT) : MOON_RING;
+    const a = -Math.PI / 2 + (k + (ring === 1 ? 0.5 : 0)) * (TAU / n);
+    out.push({ x: R * Math.cos(a), y: R * Math.sin(a), z: 0, ring, radius: R });
+  }
+  return out;
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CATEGORIES, DEMO_BUBBLE, TOPICS, type CategoryId } from "../data/taxonomy";
 import { MODEL } from "../data/model";
 import { layout, pathTo } from "./layout";
-import { angularDistance, solarModel, solarPositions, whereNext, routeTo } from "./solar";
+import { MOON_R, moonLayout, angularDistance, solarModel, solarPositions, whereNext, routeTo } from "./solar";
 
 const mulberry = (seed: number) => () => {
   seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
@@ -193,5 +193,22 @@ describe("solarPositions", () => {
     const small = solarPositions(build(["ai"], 0.5).sm).home.r, big = solarPositions(build(TOPICS.slice(0, 30).map((t) => t.id), 0.5).sm).home.r;
     expect(big).toBeGreaterThan(small);
     expect(big).toBeLessThan(small * 2);
+  });
+});
+
+describe("moonLayout", () => {
+  it("returns one offset per moon, deterministically, without overlaps", () => {
+    for (let n = 0; n <= 30; n++) {
+      const a = moonLayout(n);
+      expect(a.length).toBe(n);
+      expect(moonLayout(n)).toEqual(a);
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        expect(Math.hypot(a[i].x - a[j].x, a[i].y - a[j].y)).toBeGreaterThan(2 * MOON_R * 1.05);
+      }
+    }
+  });
+  it("uses one ring for few moons and two for many", () => {
+    expect(new Set(moonLayout(8).map((m) => m.radius)).size).toBe(1);
+    expect(new Set(moonLayout(14).map((m) => m.radius)).size).toBe(2);
   });
 });

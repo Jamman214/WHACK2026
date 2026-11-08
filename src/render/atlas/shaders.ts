@@ -154,9 +154,11 @@ void main() {
   if (r > 1.0) discard;
   float w = max(fwidth(r), 0.004), c = vCore;
   vec4 o = vec4(vHalo.rgb, vHalo.a * pow(1.0 - smoothstep(c * 0.9, 1.0, r), 2.0));
-  float ring = vRing * (smoothstep(c * 1.28 - w, c * 1.28 + w, r) - smoothstep(c * 1.62 - w, c * 1.62 + w, r));
+  bool ro = vRing > 1.5; // ring-only dot: just the selection ring, no halo or core
+  if (ro) o.a = 0.0;
+  float ring = (ro ? vRing - 2.0 : vRing) * (smoothstep(c * 1.28 - w, c * 1.28 + w, r) - smoothstep(c * 1.62 - w, c * 1.62 + w, r));
   o.rgb = mix(o.rgb, uRingCol, ring); o.a = max(o.a, ring);
-  float core = 1.0 - smoothstep(c - w, c + w, r);
+  float core = ro ? 0.0 : 1.0 - smoothstep(c - w, c + w, r);
   vec3 cc = mix(vColor, mix(vColor, uEdgeCol, 0.55), smoothstep(c * 0.7 - w, c * 0.7 + w, r));
   o.rgb = mix(o.rgb, cc, core); o.a = max(o.a, core);
   gl_FragColor = vec4(o.rgb, o.a * vAlpha);
@@ -179,4 +181,29 @@ void main() {
   if (r > 1.0) discard;
   gl_FragColor = vec4(uColor, uAlpha * (1.0 - smoothstep(0.3, 1.0, r)));
   #include <colorspace_fragment>
+}`;
+
+export const MOON_VERT = /* glsl */ `
+attribute vec3 aCol; attribute float aAlpha;
+varying vec3 vCol; varying float vA; varying vec3 vN;
+#include <fog_pars_vertex>
+void main() {
+  vCol = aCol; vA = aAlpha;
+  vN = normalize(mat3(viewMatrix) * mat3(instanceMatrix) * normal / max(1e-4, length(vec3(instanceMatrix[0])))); 
+  vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`;
+
+export const MOON_FRAG = /* glsl */ `
+varying vec3 vCol; varying float vA; varying vec3 vN;
+#include <fog_pars_fragment>
+void main() {
+  if (vA < 0.004) discard;
+  vec3 n = normalize(vN);
+  float l = clamp(dot(n, normalize(vec3(-0.45, 0.55, 0.7))), 0.0, 1.0);
+  vec3 c = vCol * (0.38 + 0.72 * l) + vCol * pow(1.0 - n.z, 3.0) * 0.18;
+  gl_FragColor = vec4(c, vA);
+  #include <colorspace_fragment>
+  #include <fog_fragment>
 }`;
