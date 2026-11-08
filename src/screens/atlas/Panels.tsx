@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { CATEGORIES, CATEGORY_BY_ID, type CategoryId } from "../../data/taxonomy";
 import { MODEL, DEFAULT_STRENGTH } from "../../data/model";
-import { PLANET_INFO } from "../../data/planets";
+import { planetInfo } from "../../data/planets";
 import { edgeReason } from "../../data/reasons";
 import type { NewsProvider } from "../../feed";
 import { pathTo, type Layout } from "../../lib/layout";
@@ -170,7 +170,7 @@ export function HomePanel(c: PanelCtx) {
 // ---------------------------------------------------------------------------------------------
 export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel: string | null }) {
   const { sm, lay } = c;
-  const p = sm.planets[id], info = PLANET_INFO[id], cat = CATEGORY_BY_ID[id];
+  const p = sm.planets[id], info = planetInfo(id), cat = CATEGORY_BY_ID[id];
   const total = cat.topics.length, done = p.explored.length;
   const out = isOut(p);
   // nearest topics first, so the way in reads top-down
@@ -182,7 +182,7 @@ export function PlanetPanel({ id, sel, ...c }: PanelCtx & { id: CategoryId; sel:
         <h2 tabIndex={-1} data-focus>{cat.name}</h2>
         <p className="tag">{info.tagline}</p>
       </div>
-      <p className="blurb">{info.blurb}</p>
+      {info.blurb && <p className="blurb">{info.blurb}</p>}
 
       <div className="prog" style={{ "--pc": planetColor(id) } as CSSProperties}>
         <div className="prog__top">

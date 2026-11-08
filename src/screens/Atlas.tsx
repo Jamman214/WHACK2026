@@ -4,7 +4,7 @@ import {
 } from "react";
 import { CATEGORY_BY_ID, TOPIC_BY_ID, TOPICS } from "../data/taxonomy";
 import { DEFAULT_STRENGTH, MODEL } from "../data/model";
-import { PLANET_INFO } from "../data/planets";
+import { planetInfo } from "../data/planets";
 import type { NewsProvider } from "../feed";
 import { layout, pathTo } from "../lib/layout";
 import { solarModel } from "../lib/solar";
@@ -107,7 +107,7 @@ export default function Atlas({ focus, bubble, onBubbleChange, initialBubble, pr
     else {
       const p = sm.planets[id];
       const far = !Number.isFinite(p.orbit) ? "Out of reach" : p.complete ? "Fully explored" : stepsOut(p.orbit);
-      setAnnounce(`${planetName(id)} planet. ${PLANET_INFO[id].tagline}. ${far}. ${p.explored.length} of ${p.topics.length} explored. Details are in the side panel.`);
+      setAnnounce(`${planetName(id)} planet. ${planetInfo(id).tagline}. ${far}. ${p.explored.length} of ${p.topics.length} explored. Details are in the side panel.`);
     }
   }, [sm, known]);
   const openTopic = useCallback((id: string) => {

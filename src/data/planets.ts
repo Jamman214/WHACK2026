@@ -1,4 +1,4 @@
-import type { CategoryId } from "./taxonomy";
+import { CATEGORY_BY_ID, type CategoryId } from "./taxonomy";
 
 /** Plain-language copy for each category "planet" in the Atlas solar system. */
 export interface PlanetInfo {
@@ -81,4 +81,6 @@ export const PLANET_INFO: Record<CategoryId, PlanetInfo> = {
   },
 };
 
-export const planetInfo = (id: CategoryId): PlanetInfo => PLANET_INFO[id];
+/** Backend groups have no hand-written copy yet: fall back to a tagline built from their first topics. */
+export const planetInfo = (id: CategoryId): PlanetInfo =>
+  PLANET_INFO[id] ?? { tagline: (CATEGORY_BY_ID[id]?.topics ?? []).slice(0, 3).map((t) => t.name).join(", "), blurb: "" };
